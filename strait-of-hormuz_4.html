@@ -26,19 +26,19 @@ const SHIPS={
   ulcc:{name:"ULCC",class:"Ultra Large",capacity:3200000,speed:9,maneuverability:1,draft:24,fuelBurn:120,color:"#8854d0",lengthM:415,beamM:70,dwt:"500,000",hullHP:180,hitboxW:22,hitboxH:32,desc:"3.2M barrels. You ARE the horizon.",pros:["Legendary cargo"],cons:["Virtually immobile","Enormous hitbox"],silhouette:{tanks:8,h:1.0}},
 };
 const ORIGINS=[
-  {id:"ras_tanura",name:"Ras Tanura",country:"Saudi Arabia",flag:"🇸🇦",mapX:19,mapY:40,cargoBonus:1.0,riskMod:0.9,oilType:"Arab Light",price:72,sellPrice:85,color:"#2ecc71",desc:"World's largest oil export terminal."},
-  {id:"juaymah",name:"Ju'aymah",country:"Saudi Arabia",flag:"🇸🇦",mapX:17,mapY:38,cargoBonus:1.0,riskMod:0.85,oilType:"Arab Extra Light",price:75,sellPrice:90,color:"#4ecdc4",desc:"Premium light crude terminal."},
-  {id:"basra",name:"Al Basrah",country:"Iraq",flag:"🇮🇶",mapX:13,mapY:16,cargoBonus:1.1,riskMod:1.15,oilType:"Basra Heavy",price:65,sellPrice:78,color:"#f7b731",desc:"Cheaper crude, fuller tanks."},
-  {id:"kharg",name:"Kharg Island",country:"Iran",flag:"🇮🇷",mapX:22,mapY:26,cargoBonus:1.15,riskMod:1.3,oilType:"Iranian Light",price:58,sellPrice:68,color:"#e056a0",desc:"Iran's main terminal. Sanctioned."},
-  {id:"bandar",name:"Bandar Abbas",country:"Iran",flag:"🇮🇷",mapX:50,mapY:27,cargoBonus:1.2,riskMod:1.4,oilType:"Iranian Heavy",price:55,sellPrice:64,color:"#eb3b5a",desc:"Maximum cargo, maximum danger."},
+  {id:"ras_tanura",name:"Ras Tanura",country:"Saudi Arabia",flag:"🇸🇦",mapX:20,mapY:38,cargoBonus:1.0,riskMod:0.9,oilType:"Arab Light",price:72,sellPrice:85,color:"#2ecc71",desc:"World's largest oil export terminal."},
+  {id:"juaymah",name:"Ju'aymah",country:"Saudi Arabia",flag:"🇸🇦",mapX:18,mapY:36,cargoBonus:1.0,riskMod:0.85,oilType:"Arab Extra Light",price:75,sellPrice:90,color:"#4ecdc4",desc:"Premium light crude terminal."},
+  {id:"basra",name:"Al Basrah",country:"Iraq",flag:"🇮🇶",mapX:10,mapY:16,cargoBonus:1.1,riskMod:1.15,oilType:"Basra Heavy",price:65,sellPrice:78,color:"#f7b731",desc:"Cheaper crude, fuller tanks."},
+  {id:"kharg",name:"Kharg Island",country:"Iran",flag:"🇮🇷",mapX:21,mapY:17,cargoBonus:1.15,riskMod:1.3,oilType:"Iranian Light",price:58,sellPrice:68,color:"#e056a0",desc:"Iran's main terminal. Sanctioned."},
+  {id:"bandar",name:"Bandar Abbas",country:"Iran",flag:"🇮🇷",mapX:53,mapY:35,cargoBonus:1.2,riskMod:1.4,oilType:"Iranian Heavy",price:55,sellPrice:64,color:"#eb3b5a",desc:"Maximum cargo, maximum danger."},
 ];
 // Routes from each origin converge toward the strait exit
 const ROUTES={
-  ras_tanura:[{x:19,y:40},{x:25,y:34},{x:31,y:30},{x:37,y:28},{x:43,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
-  juaymah:[{x:17,y:38},{x:23,y:33},{x:29,y:30},{x:36,y:28},{x:43,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
-  basra:[{x:13,y:16},{x:17,y:21},{x:22,y:26},{x:28,y:28},{x:35,y:28},{x:42,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
-  kharg:[{x:22,y:26},{x:28,y:27},{x:35,y:27},{x:42,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
-  bandar:[{x:50,y:27},{x:54,y:29},{x:57,y:34},{x:60,y:40},{x:63,y:46},{x:65,y:50}],
+  ras_tanura:[{x:20,y:38},{x:24,y:36},{x:30,y:35},{x:35,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
+  juaymah:[{x:18,y:36},{x:23,y:35},{x:29,y:35},{x:35,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
+  basra:[{x:10,y:16},{x:13,y:21},{x:16,y:26},{x:19,y:31},{x:24,y:35},{x:33,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
+  kharg:[{x:21,y:17},{x:22,y:24},{x:25,y:31},{x:30,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
+  bandar:[{x:53,y:35},{x:56,y:37},{x:59,y:40},{x:62,y:44},{x:65,y:48},{x:68,y:54}],
 };
 const EQUIPMENT=[
   {id:"ciws",name:"CIWS Phalanx",cost:450000,icon:"🔫",desc:"20mm autocannon",effects:"Auto-shoots diving drones. IRGC boats 40% slower."},
@@ -115,7 +115,7 @@ function GameMap({originId,progress,events,eventIdx,selected,onSelect,mode}){
   }
   const hov=useRef(null);const[hovId,setHovId]=useState(null);
   return(<div>
-    <svg viewBox="0 0 100 80" style={{width:"100%",maxWidth:580,display:"block",margin:"0 auto",borderRadius:10,border:"1px solid "+S.border,background:"url('map-bg.png') center/contain no-repeat, #081020"}}>
+    <svg viewBox="0 0 100 80" style={{width:"100%",flex:1,display:"block",margin:"0 auto",borderRadius:10,border:"1px solid "+S.border,background:"url('map-bg.png') center/contain no-repeat, #081020"}}>
       {/* Map background is provided by map-bg.png — coastlines, labels, and fleet ships are baked in */}
       {/* Route line */}
       {route&&<polyline points={route.map(p=>p.x+","+p.y).join(" ")} fill="none" stroke={S.accent} strokeWidth="0.8" strokeDasharray="2,2" opacity="0.3"/>}
@@ -135,7 +135,7 @@ function GameMap({originId,progress,events,eventIdx,selected,onSelect,mode}){
         return <g key={o.id} style={{cursor:mode==="select"?"pointer":"default"}} onMouseEnter={()=>setHovId(o.id)} onMouseLeave={()=>setHovId(null)} onClick={()=>mode==="select"&&onSelect&&onSelect(o.id)}>
           {(isH||isS)&&<circle cx={o.mapX} cy={o.mapY} r="3" fill="none" stroke={o.color} strokeWidth="0.3" opacity="0.5"><animate attributeName="r" values="2;4;2" dur="2s" repeatCount="indefinite"/></circle>}
           <circle cx={o.mapX} cy={o.mapY} r={isS?2:isH?1.5:1} fill={(isH||isS)?o.color:"#fff"} stroke={o.color} strokeWidth="0.3" opacity={(isH||isS)?1:0.5}/>
-          <text x={o.mapX} y={o.mapY-3} fill={(isH||isS)?"#fff":"#8899aa"} fontSize={(isH||isS)?"2":"1.6"} textAnchor="middle" fontFamily="monospace">{o.flag} {o.name}</text>
+          <text x={o.mapX} y={o.mapY-3} fill={(isH||isS)?"#fff":"#8899aa"} fontSize={(isH||isS)?"2":"1.6"} textAnchor="middle" fontFamily="monospace">{o.name}</text>
         </g>;
       })}
       {/* Ship position */}
@@ -1858,9 +1858,10 @@ function Game(){
       <input placeholder="Captain name (for leaderboard)" value={playerName} onChange={e=>setPlayerName(e.target.value)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid "+S.border,borderRadius:8,padding:"10px 16px",color:"#fff",fontFamily:S.font,fontSize:14,width:"80%",marginBottom:12}}/>
     </div>
     <button onClick={()=>setPhase("setup_ship")} style={{...btn(),fontSize:16,padding:"14px 40px"}}>▶ ENTER SHIPYARD</button>
-    <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:12}}>
+    <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:12,flexWrap:"wrap"}}>
       <button onClick={()=>setPhase("howto")} style={{...btn("#4a90d9",false),fontSize:12,padding:"8px 20px"}}>📖 HOW TO PLAY</button>
       <button onClick={()=>{setTestGame(null);setTestResult(null);setPhase("test_menu")}} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px"}}>🎮 TEST MINIGAMES</button>
+      <button onClick={()=>setPhase("debug_map")} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px"}}>🗺️ MAP</button>
     </div>
     {/* Leaderboard */}
     {(()=>{const lb=getLeaderboard();if(!lb.length)return null;return <div style={{...card,marginTop:20,textAlign:"left"}}>
@@ -1992,6 +1993,13 @@ function Game(){
       </div>
     </div></div>);
   }
+
+  // ── DEBUG MAP VIEW ──
+  if(phase==="debug_map")return(<div style={wrap}><div style={{maxWidth:600,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
+    <h2 style={{fontFamily:S.titleFont,color:S.accent,fontSize:19,marginBottom:8}}>MAP VIEW</h2>
+    <GameMap originId={null} progress={null} events={null} eventIdx={0} mode="view"/>
+    <button onClick={()=>setPhase("title")} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px",marginTop:12}}>← BACK</button>
+  </div></div>);
 
   // ── TEST MINIGAMES MENU ──
   if(phase==="test_menu"){
@@ -2165,7 +2173,7 @@ function Game(){
 
   if(phase==="sailing")return(<div style={gameWrap}><div style={{maxWidth:580,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
     <HUD/>
-    <div style={fieldCenter}>
+    <div style={{flex:1,display:"flex",flexDirection:"column",padding:"0 4px",minHeight:0}}>
       <h2 style={{fontFamily:S.titleFont,color:S.accent,fontSize:19,marginBottom:8}}>UNDERWAY</h2>
       <GameMap originId={origin} progress={sailProgress} events={eventsRef.current} eventIdx={eventIndex} mode="sail"/>
       <div style={{color:S.dim,fontSize:15,marginTop:12}}><span style={{animation:"blink 1s infinite"}}>⚠</span> Scanning horizon...</div>
