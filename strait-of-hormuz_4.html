@@ -298,6 +298,14 @@ function PirateChaseGame({onComplete,shipSpeed,equip,shipKey,rounds=0}){
     const TOTAL_S=20;
     const g={ship:{x:W/2,y:H-80},boats:[],active:true,keys:{},hits:0,startTime:performance.now(),elapsed:0,
       particles:[],wakes:[],shk:0,flash:0,warnings:[],roundCharges:rounds,roundCooldown:0,kills:0};
+    // Fixed obstacles — rocky outcrops the player must navigate around
+    const obstacles=[
+      {x:W*0.25,y:H*0.35,r:22,type:"rock"},
+      {x:W*0.72,y:H*0.55,r:18,type:"rock"},
+      {x:W*0.45,y:H*0.22,r:16,type:"wreck"},
+      {x:W*0.15,y:H*0.65,r:20,type:"rock"},
+      {x:W*0.82,y:H*0.30,r:15,type:"buoy"},
+    ];
     // Spawn IRGC fast boats at different edges with varied behavior
     const spawnZones=[
       {x:W*0.15,y:H*0.08},{x:W*0.85,y:H*0.12},{x:W*0.5,y:H*0.05},{x:W*0.3,y:H*0.2},{x:W*0.7,y:H*0.18},{x:W*0.15,y:H*0.25}
@@ -391,11 +399,43 @@ function PirateChaseGame({onComplete,shipSpeed,equip,shipKey,rounds=0}){
       const moonX=W*0.7,moonGrad=ctx.createRadialGradient(moonX,0,0,moonX,0,180);
       moonGrad.addColorStop(0,"rgba(140,180,220,0.04)");moonGrad.addColorStop(1,"rgba(0,0,0,0)");
       ctx.fillStyle=moonGrad;ctx.fillRect(0,0,W,H);
+      // Draw obstacles
+      obstacles.forEach(ob=>{
+        ctx.save();ctx.translate(ob.x,ob.y);
+        if(ob.type==="rock"){
+          // Rocky outcrop with jagged edges
+          const rg=ctx.createRadialGradient(-ob.r*0.2,-ob.r*0.2,1,0,0,ob.r);
+          rg.addColorStop(0,"#4a4035");rg.addColorStop(0.6,"#33291f");rg.addColorStop(1,"#1a1510");
+          ctx.fillStyle=rg;ctx.beginPath();
+          for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2,rr=ob.r*(0.8+Math.sin(i*3.7)*0.25);
+            i===0?ctx.moveTo(Math.cos(a)*rr,Math.sin(a)*rr):ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr)}
+          ctx.closePath();ctx.fill();ctx.strokeStyle="rgba(80,65,45,0.4)";ctx.lineWidth=1;ctx.stroke();
+        } else if(ob.type==="wreck"){
+          // Half-sunken wreck
+          ctx.fillStyle="#2a2a2a";ctx.beginPath();ctx.moveTo(-ob.r,4);ctx.lineTo(-ob.r*0.6,-ob.r*0.7);
+          ctx.lineTo(ob.r*0.6,-ob.r*0.5);ctx.lineTo(ob.r,6);ctx.bezierCurveTo(ob.r*0.5,ob.r*0.8,-ob.r*0.5,ob.r*0.8,-ob.r,4);
+          ctx.fill();ctx.strokeStyle="#444";ctx.lineWidth=0.5;ctx.stroke();
+          // Mast
+          ctx.strokeStyle="#555";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,-ob.r*0.5);ctx.lineTo(-2,-ob.r*1.2);ctx.stroke();
+        } else {
+          // Navigation buoy
+          ctx.fillStyle="#cc2222";ctx.beginPath();ctx.arc(0,0,ob.r*0.5,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle="#ffcc00";ctx.fillRect(-2,-ob.r*0.9,4,ob.r*0.5);
+          // Blinking light
+          ctx.fillStyle=Math.sin(t*4)>0?"#ffff66":"#664400";
+          ctx.beginPath();ctx.arc(0,-ob.r*0.9,3,0,Math.PI*2);ctx.fill();
+        }
+        ctx.restore();
+      });
       // Move player ship
       if(g.keys["ArrowLeft"]||g.keys["a"])g.ship.x-=spd*dt;if(g.keys["ArrowRight"]||g.keys["d"])g.ship.x+=spd*dt;
       if(g.keys["ArrowUp"]||g.keys["w"])g.ship.y-=spd*0.6*dt;if(g.keys["ArrowDown"]||g.keys["s"])g.ship.y+=spd*0.6*dt;
       if(tch){const r=canvas.getBoundingClientRect();g.ship.x+=((tch.x-r.left)/r.width*W-g.ship.x)*0.06*dt;g.ship.y+=((tch.y-r.top)/r.height*H-g.ship.y)*0.04*dt}
       g.ship.x=clamp(g.ship.x,hbW+4,W-hbW-4);g.ship.y=clamp(g.ship.y,40,H-30);
+      // Ship-obstacle collision (push out)
+      obstacles.forEach(ob=>{const dx=g.ship.x-ob.x,dy=g.ship.y-ob.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        const minD=ob.r+Math.max(hbW,hbH)*0.7;
+        if(d<minD){const push=(minD-d)/d;g.ship.x+=dx*push;g.ship.y+=dy*push}});
       // Ship wake trail
       if(Math.random()<0.4)g.wakes.push({x:g.ship.x+(Math.random()-0.5)*hbW,y:g.ship.y+hbH*0.7,life:1,sz:2+Math.random()*3});
       // Update & draw IRGC boats with DISTINCT behaviors
@@ -428,8 +468,14 @@ function PirateChaseGame({onComplete,shipSpeed,equip,shipKey,rounds=0}){
               p.vy+=((ahead-p.y)/(Math.abs(ahead-p.y)||1)*aggression*0.8+sepY)*pSpd*dt}
             else{p.vx+=(dx/d*aggression*2+sepX)*pSpd*dt;p.vy+=(dy/d*aggression*2+sepY)*pSpd*dt}break;
         }
+        // Obstacle avoidance force for boats
+        obstacles.forEach(ob=>{const odx=p.x-ob.x,ody=p.y-ob.y,od=Math.sqrt(odx*odx+ody*ody)||1;
+          const avoid=ob.r+20;if(od<avoid){const f=(avoid-od)/avoid*0.3;p.vx+=odx/od*f*dt;p.vy+=ody/od*f*dt}});
         p.vx*=Math.pow(0.96,dt);p.vy*=Math.pow(0.96,dt);
         p.x+=p.vx*dt;p.y+=p.vy*dt;
+        // Push boats out of obstacles
+        obstacles.forEach(ob=>{const odx=p.x-ob.x,ody=p.y-ob.y,od=Math.sqrt(odx*odx+ody*ody)||1;
+          if(od<ob.r+8){const push=(ob.r+8-od)/od;p.x+=odx*push;p.y+=ody*push}});
         // Keep boats in bounds
         p.x=clamp(p.x,10,W-10);p.y=clamp(p.y,10,H-30);
         p.angle=Math.atan2(p.vy,p.vx);
@@ -2030,7 +2076,7 @@ function Game(){
     const onFatal=()=>setTestResult({success:false,sunk:true,msg:"Vessel destroyed."});
     return(<div style={gameWrap}><div style={{maxWidth:580,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
       <div style={{...card,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:8}}>
-        <span style={{color:S.accent,fontWeight:"bold"}}>🎮 TEST: {testGame?.toUpperCase()}</span>
+        <span style={{color:S.accent,fontWeight:"bold"}}>🎮 TEST: {({mines:"MINEFIELD",pirates:"IRGC BOATS",missile:"MISSILES",sandstorm:"SHAMAL",drones:"DRONES",radio:"RADIO",negotiate:"NEGOTIATION"})[testGame]||testGame?.toUpperCase()}</span>
         <span style={{color:S.dim}}>{tsd.name} ({tsd.hitboxW}×{tsd.hitboxH})</span>
       </div>
       <div style={{...fieldCenter,overflow:"auto"}}>
