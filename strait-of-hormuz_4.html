@@ -1804,13 +1804,16 @@ function Game(){
   };
 
   const startSailing=useCallback((idx)=>{
-    setPhase("sailing");setSailProgress(idx/Math.max(1,eventsRef.current.length));
+    const nEv=Math.max(1,eventsRef.current.length);
+    const startProg=idx===0?0:((idx-1)+0.5)/nEv;
+    const endProg=idx>=nEv?1:(idx+0.5)/nEv;
+    setPhase("sailing");setSailProgress(startProg);
     let ticks=0;const maxTicks=50+Math.random()*30;
     if(sailRef.current)clearInterval(sailRef.current);
     const catRoll=Math.random(),catAt=15+Math.floor(Math.random()*20);
     const arm=equipment.includes("armor")?0.6:1;
     sailRef.current=setInterval(()=>{
-      ticks++;setSailProgress(Math.min(1,(idx+ticks/maxTicks)/Math.max(1,eventsRef.current.length)));
+      ticks++;setSailProgress(Math.min(1,startProg+(ticks/maxTicks)*(endProg-startProg)));
       if(ticks===catAt&&catRoll<0.10){
         clearInterval(sailRef.current);
         const cat=CATASTROPHES[Math.floor(Math.random()*CATASTROPHES.length)];
