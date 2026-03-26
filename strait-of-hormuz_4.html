@@ -88,6 +88,57 @@ const fieldCenter={flex:1,display:"flex",flexDirection:"column",justifyContent:"
 function getLeaderboard(){try{return JSON.parse(localStorage.getItem("soh_lb")||"[]")}catch(e){return[]}}
 function saveScore(entry){try{const lb=getLeaderboard();lb.push(entry);lb.sort((a,b)=>b.profit-a.profit);localStorage.setItem("soh_lb",JSON.stringify(lb.slice(0,20)))}catch(e){}}
 
+// ══════════ DRAW TANKER (canvas, overhead) ══════════
+// Draws an overhead oil tanker at the current canvas origin (caller should translate first).
+// w = half-width, h = half-height, color = hull color, tanks = number of tank domes, t = animation time
+function drawTanker(ctx,w,h,color,tanks,t){
+  // Shadow
+  ctx.fillStyle="rgba(0,0,0,0.22)";ctx.beginPath();ctx.ellipse(2,3,w+2,h*0.35,0,0,Math.PI*2);ctx.fill();
+  // Hull — rectangular with rounded bow
+  const hGrad=ctx.createLinearGradient(-w,0,w,0);
+  hGrad.addColorStop(0,color+"88");hGrad.addColorStop(0.5,color);hGrad.addColorStop(1,color+"88");
+  ctx.fillStyle=hGrad;
+  ctx.beginPath();
+  ctx.moveTo(-w*0.85,-h);// port bow start
+  ctx.quadraticCurveTo(-w*0.2,-h*1.08,0,-h*1.05);// bow curve port
+  ctx.quadraticCurveTo(w*0.2,-h*1.08,w*0.85,-h);// bow curve starboard
+  ctx.lineTo(w,-h*0.85);// starboard forward shoulder
+  ctx.lineTo(w,h*0.8);// starboard side
+  ctx.quadraticCurveTo(w*0.9,h,0,h);// stern curve
+  ctx.quadraticCurveTo(-w*0.9,h,-w,h*0.8);// stern curve port
+  ctx.lineTo(-w,-h*0.85);// port side
+  ctx.closePath();ctx.fill();
+  // Deck — dark brown flat area
+  ctx.fillStyle="rgba(60,35,20,0.65)";
+  const deckTop=-h*0.75,deckBot=h*0.45,deckW=w*0.78;
+  ctx.beginPath();ctx.moveTo(-deckW,deckTop);ctx.lineTo(deckW,deckTop);
+  ctx.lineTo(deckW,deckBot);ctx.lineTo(-deckW,deckBot);ctx.closePath();ctx.fill();
+  // Pipe manifold — center line
+  ctx.strokeStyle="rgba(150,130,100,0.5)";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(0,deckTop+2);ctx.lineTo(0,deckBot-2);ctx.stroke();
+  // Tank domes — circles along the deck
+  const tankArea=deckBot-deckTop-6,tankR=Math.min(deckW*0.55,(tankArea/tanks)*0.42);
+  for(let i=0;i<tanks;i++){
+    const ty=deckTop+3+tankR+(i*(tankArea-tankR*2)/(Math.max(1,tanks-1)));
+    ctx.fillStyle="rgba(40,40,50,0.7)";ctx.beginPath();ctx.arc(0,ty,tankR,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle="rgba(80,80,90,0.5)";ctx.lineWidth=0.8;ctx.stroke();
+    // Highlight
+    ctx.fillStyle="rgba(255,255,255,0.06)";ctx.beginPath();ctx.arc(-tankR*0.25,ty-tankR*0.25,tankR*0.4,0,Math.PI*2);ctx.fill();
+  }
+  // Bridge / superstructure at stern
+  const brW=w*0.55,brH=h*0.22,brY=h*0.5;
+  ctx.fillStyle="rgba(180,185,195,0.7)";
+  ctx.fillRect(-brW/2,brY,brW,brH);
+  ctx.fillStyle="rgba(140,200,255,0.3)";// windows
+  ctx.fillRect(-brW/2+2,brY+1,brW-4,brH*0.4);
+  // Funnel/mast
+  ctx.fillStyle="rgba(100,100,110,0.8)";ctx.fillRect(-2,brY-3,4,4);
+  // Navigation lights
+  const blink=Math.sin((t||0)*6)>0;
+  ctx.fillStyle=blink?"#0f0":"#060";ctx.fillRect(w-2,-h*0.5,3,3);
+  ctx.fillStyle=blink?"#f00":"#600";ctx.fillRect(-w-1,-h*0.5,3,3);
+}
+
 // ══════════ SHIP GRAPHIC ══════════
 function ShipGraphic({shipKey,width=280,showLabel=true}){
   const s=SHIPS[shipKey];if(!s)return null;
@@ -257,12 +308,7 @@ function MineFieldGame({onComplete,agility,equip,shipKey}){
       if(inSafe&&safeProg>0.5){ctx.fillStyle="rgba(46,204,113,"+clamp(safeProg*2-0.5,0,1)+")";ctx.font="bold 20px monospace";ctx.textAlign="center";ctx.fillText("— SAFE WATERS —",W/2,H/2-15);ctx.font="14px monospace";ctx.fillText("Minefield cleared",W/2,H/2+10);ctx.textAlign="start"}
       // Ship — tanker shape
       ctx.save();ctx.translate(g.ship.x,g.ship.y);
-      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(1.5,hbH*0.4,hbW*1.05,hbH*0.25,0,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle=s.color;ctx.globalAlpha=0.9;
-      ctx.beginPath();ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.8,hbW*0.8,-hbH*0.2,hbW,hbH*0.4);ctx.lineTo(hbW*0.85,hbH*0.7);ctx.lineTo(-hbW*0.85,hbH*0.7);ctx.lineTo(-hbW,hbH*0.4);ctx.bezierCurveTo(-hbW*0.8,-hbH*0.2,-hbW*0.4,-hbH*0.8,0,-hbH);ctx.fill();ctx.globalAlpha=1;
-      ctx.fillStyle="rgba(0,0,0,0.15)";ctx.fillRect(-hbW*0.55,-hbH*0.15,hbW*1.1,hbH*0.55);
-      ctx.fillStyle="#bbb";ctx.fillRect(hbW*0.2,-hbH*0.55,hbW*0.35,hbH*0.45);
-      ctx.fillStyle="#ddd";ctx.fillRect(hbW*0.25,-hbH*0.48,hbW*0.25,hbH*0.15);
+      drawTanker(ctx,hbW,hbH,s.color,s.silhouette.tanks,animT*0.05);
       ctx.restore();
       // HUD
       ctx.fillStyle="rgba(4,14,31,0.88)";ctx.fillRect(0,0,W,42);
@@ -542,23 +588,7 @@ function PirateChaseGame({onComplete,shipSpeed,equip,shipKey,rounds=0}){
       ctx.globalAlpha=1;
       // Draw player ship (detailed tanker)
       ctx.save();ctx.translate(g.ship.x,g.ship.y);
-      // Ship shadow
-      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(3,4,hbW+2,hbH*0.4,0,0,Math.PI*2);ctx.fill();
-      // Hull
-      const hullGrad=ctx.createLinearGradient(-hbW,0,hbW,0);
-      hullGrad.addColorStop(0,s.color+"99");hullGrad.addColorStop(0.5,s.color);hullGrad.addColorStop(1,s.color+"99");
-      ctx.fillStyle=hullGrad;ctx.beginPath();
-      ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.9,hbW*0.8,-hbH*0.3,hbW,hbH*0.3);
-      ctx.bezierCurveTo(hbW*0.9,hbH*0.7,hbW*0.3,hbH,0,hbH);
-      ctx.bezierCurveTo(-hbW*0.3,hbH,-hbW*0.9,hbH*0.7,-hbW,hbH*0.3);
-      ctx.bezierCurveTo(-hbW*0.8,-hbH*0.3,-hbW*0.4,-hbH*0.9,0,-hbH);ctx.fill();
-      // Deck
-      ctx.fillStyle="rgba(60,30,20,0.7)";ctx.fillRect(-hbW*0.55,-hbH*0.3,hbW*1.1,hbH*0.55);
-      // Bridge
-      ctx.fillStyle="rgba(200,200,220,0.5)";ctx.fillRect(-hbW*0.2,hbH*0.1,hbW*0.4,hbH*0.25);
-      // Running lights
-      ctx.fillStyle=Math.sin(t*6)>0?"#0f0":"#0a0";ctx.fillRect(hbW-2,-hbH*0.5,3,3);
-      ctx.fillStyle=Math.sin(t*6)>0?"#f00":"#a00";ctx.fillRect(-hbW-1,-hbH*0.5,3,3);
+      drawTanker(ctx,hbW,hbH,s.color,s.silhouette.tanks,t);
       ctx.restore();
       // Escort ship
       if(equip.includes("escort")){ctx.save();ctx.translate(g.ship.x+hbW+14,g.ship.y+8);
@@ -829,18 +859,7 @@ function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
       ctx.globalAlpha=1;
       // Draw player ship
       ctx.save();ctx.translate(g.ship.x,g.ship.y);
-      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(3,4,hbW+2,hbH*0.4,0,0,Math.PI*2);ctx.fill();
-      const hullGrad=ctx.createLinearGradient(-hbW,0,hbW,0);
-      hullGrad.addColorStop(0,s.color+"99");hullGrad.addColorStop(0.5,s.color);hullGrad.addColorStop(1,s.color+"99");
-      ctx.fillStyle=hullGrad;ctx.beginPath();
-      ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.9,hbW*0.8,-hbH*0.3,hbW,hbH*0.3);
-      ctx.bezierCurveTo(hbW*0.9,hbH*0.7,hbW*0.3,hbH,0,hbH);
-      ctx.bezierCurveTo(-hbW*0.3,hbH,-hbW*0.9,hbH*0.7,-hbW,hbH*0.3);
-      ctx.bezierCurveTo(-hbW*0.8,-hbH*0.3,-hbW*0.4,-hbH*0.9,0,-hbH);ctx.fill();
-      ctx.fillStyle="rgba(60,30,20,0.7)";ctx.fillRect(-hbW*0.55,-hbH*0.3,hbW*1.1,hbH*0.55);
-      ctx.fillStyle="rgba(200,200,220,0.5)";ctx.fillRect(-hbW*0.2,hbH*0.1,hbW*0.4,hbH*0.25);
-      ctx.fillStyle=Math.sin(t*6)>0?"#0f0":"#0a0";ctx.fillRect(hbW-2,-hbH*0.5,3,3);
-      ctx.fillStyle=Math.sin(t*6)>0?"#f00":"#a00";ctx.fillRect(-hbW-1,-hbH*0.5,3,3);
+      drawTanker(ctx,hbW,hbH,s.color,s.silhouette.tanks,t);
       ctx.restore();
       // Particles (fire + splash + flare + tracer)
       g.particles.forEach(p=>{
@@ -1030,19 +1049,7 @@ function SandstormGame({onComplete,agility,equip,shipKey}){
       // ── Draw ship (blinks during iframes) ──
       if(g.iFrames<=0||Math.floor(t*8)%2===0){
         ctx.save();ctx.translate(g.ship.x,g.ship.y);
-        ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(2,3,hbW+2,hbH*0.4,0,0,Math.PI*2);ctx.fill();
-        const hGrad=ctx.createLinearGradient(-hbW,0,hbW,0);
-        hGrad.addColorStop(0,s.color+"99");hGrad.addColorStop(0.5,s.color);hGrad.addColorStop(1,s.color+"99");
-        ctx.fillStyle=hGrad;ctx.beginPath();
-        ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.9,hbW*0.8,-hbH*0.3,hbW,hbH*0.3);
-        ctx.bezierCurveTo(hbW*0.9,hbH*0.7,hbW*0.3,hbH,0,hbH);
-        ctx.bezierCurveTo(-hbW*0.3,hbH,-hbW*0.9,hbH*0.7,-hbW,hbH*0.3);
-        ctx.bezierCurveTo(-hbW*0.8,-hbH*0.3,-hbW*0.4,-hbH*0.9,0,-hbH);ctx.fill();
-        ctx.fillStyle="rgba(80,40,25,0.7)";ctx.fillRect(-hbW*0.5,-hbH*0.2,hbW,hbH*0.4);
-        ctx.fillStyle="rgba(200,200,220,0.5)";ctx.fillRect(-hbW*0.18,hbH*0.1,hbW*0.36,hbH*0.2);
-        // Navigation lights
-        ctx.fillStyle=Math.sin(t*6)>0?"#0f0":"#060";ctx.fillRect(hbW-2,-hbH*0.5,3,3);
-        ctx.fillStyle=Math.sin(t*6)>0?"#f00":"#600";ctx.fillRect(-hbW-1,-hbH*0.5,3,3);
+        drawTanker(ctx,hbW,hbH,s.color,s.silhouette.tanks,t);
         // Radar sweep if equipped
         if(equip.includes("radar")){
           ctx.strokeStyle="rgba(46,204,113,0.25)";ctx.lineWidth=1.5;
@@ -1123,15 +1130,17 @@ function SandstormGame({onComplete,agility,equip,shipKey}){
 }
 
 // ══════════ DRONE TAP ══════════
-function DroneTapGame({onComplete,equip,rounds=0}){
+function DroneTapGame({onComplete,equip,rounds=0,shipKey="suezmax"}){
   const ref=useRef(null);
   useEffect(()=>{
     const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
     const hasCIWS=equip.includes("ciws"),hasJ=equip.includes("jammer"),arm=equip.includes("armor")?0.6:1;
+    const ds=SHIPS[shipKey]||SHIPS.suezmax;
     const totalDrones=Math.round(12+Math.random()*7); // 12-18, median ~15
     const jamCount=hasJ?Math.min(3,totalDrones):0;
     const GAME_TIME=16; // seconds
-    const SHIP={x:W/2,y:H-50};
+    const dsW=ds.hitboxW*1.1,dsH=ds.hitboxH*1.1; // scale for drone game visibility
+    const SHIP={x:W/2,y:H-40-dsH};
     const g={drones:[],particles:[],active:true,kills:0,hits:0,spawned:0,
       ammo:rounds,ammoCooldown:0,ciwsCooldown:0,ciwsTarget:null,
       startTime:performance.now(),elapsed:0,shk:0,flash:0,
@@ -1237,7 +1246,7 @@ function DroneTapGame({onComplete,equip,rounds=0}){
           if(Math.random()<0.6)d.trail.push({x:d.x,y:d.y,life:1});
           // Impact check
           const dd=Math.sqrt((d.x-SHIP.x)**2+(d.y-SHIP.y)**2);
-          if(dd<25){d.alive=false;d.state="dead";g.hits++;g.shk=8;g.flash=1;
+          if(dd<Math.max(dsW,dsH)+5){d.alive=false;d.state="dead";g.hits++;g.shk=8;g.flash=1;
             for(let j=0;j<20;j++){const a=Math.random()*Math.PI*2,v=1+Math.random()*4;
               g.particles.push({x:SHIP.x,y:SHIP.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,
                 sz:2+Math.random()*4,c:["#ff2222","#ff6600","#ffcc00"][Math.floor(Math.random()*3)],type:"fire"})}}
@@ -1334,18 +1343,10 @@ function DroneTapGame({onComplete,equip,rounds=0}){
       });
       // Draw ship
       ctx.save();ctx.translate(SHIP.x,SHIP.y);
-      // Shadow
-      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(2,3,18,7,0,0,Math.PI*2);ctx.fill();
-      // Hull
-      ctx.fillStyle="#5a6a7a";ctx.beginPath();ctx.moveTo(0,-16);ctx.bezierCurveTo(10,-12,14,0,12,10);
-      ctx.lineTo(-12,10);ctx.bezierCurveTo(-14,0,-10,-12,0,-16);ctx.fill();
-      // Deck
-      ctx.fillStyle="#4a5a6a";ctx.fillRect(-8,-4,16,8);
-      // Bridge
-      ctx.fillStyle="rgba(200,220,255,0.4)";ctx.fillRect(-4,2,8,5);
+      drawTanker(ctx,dsW,dsH,ds.color,ds.silhouette.tanks,g.elapsed);
       // CIWS turret
-      if(hasCIWS){ctx.fillStyle=g.ciwsCooldown>25?"#44ff44":"#2a4a2a";ctx.fillRect(-3,-14,6,4);
-        ctx.fillStyle="#3a5a3a";ctx.fillRect(-1,-18,2,5)}
+      if(hasCIWS){ctx.fillStyle=g.ciwsCooldown>25?"#44ff44":"#2a4a2a";ctx.fillRect(-3,-dsH*0.85,6,4);
+        ctx.fillStyle="#3a5a3a";ctx.fillRect(-1,-dsH*0.85-4,2,5)}
       ctx.restore();
       // Draw particles
       g.particles.forEach(p=>{
@@ -2054,7 +2055,7 @@ function Game(){
           {testGame==="pirates"&&<PirateChaseGame onComplete={onDone} shipSpeed={tsd.speed} equip={testEquip} shipKey={testShip} rounds={testRounds}/>}
           {testGame==="missile"&&<MissileDodgeGame onComplete={onDone} agility={tsd.maneuverability} equip={testEquip} shipKey={testShip} flares={testFlares} rounds={testRounds}/>}
           {testGame==="sandstorm"&&<SandstormGame onComplete={onDone} agility={tsd.maneuverability} equip={testEquip} shipKey={testShip}/>}
-          {testGame==="drones"&&<DroneTapGame onComplete={onDone} equip={testEquip} rounds={testRounds}/>}
+          {testGame==="drones"&&<DroneTapGame onComplete={onDone} equip={testEquip} rounds={testRounds} shipKey={testShip}/>}
           {testGame==="radio"&&<RadioScanGame onComplete={onDone} shipName={"MV "+tsd.name} isSanctioned={false}/>}
           {testGame==="negotiate"&&<NegotiationGame onComplete={onDone} equip={testEquip} onFatalFail={onFatal} currentCargoPercent={100}/>}
         </div>}
@@ -2171,7 +2172,7 @@ function Game(){
       </div>}
       {miniGameStarted&&<div style={{width:"100%"}}>
         {currentEvent.miniGame==="mines"&&<MineFieldGame onComplete={handleMGC} agility={sd.maneuverability} equip={equipment} shipKey={ship}/>}
-        {currentEvent.miniGame==="drones"&&<DroneTapGame onComplete={handleMGC} equip={equipment} rounds={roundCount}/>}
+        {currentEvent.miniGame==="drones"&&<DroneTapGame onComplete={handleMGC} equip={equipment} rounds={roundCount} shipKey={ship}/>}
         {currentEvent.miniGame==="pirates"&&<PirateChaseGame onComplete={handleMGC} shipSpeed={sd.speed} equip={equipment} shipKey={ship} rounds={roundCount}/>}
         {currentEvent.miniGame==="missile"&&<MissileDodgeGame onComplete={handleMGC} agility={sd.maneuverability} equip={equipment} shipKey={ship} flares={flareCount} rounds={roundCount}/>}
         {currentEvent.miniGame==="sandstorm"&&<SandstormGame onComplete={handleMGC} agility={sd.maneuverability} equip={equipment} shipKey={ship}/>}
