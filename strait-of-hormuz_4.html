@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Strait of Hormuz</title>
+<meta property="og:title" content="Strait of Hormuz — Oil Tanker Survival Game">
+<meta property="og:description" content="Navigate 2M barrels of crude through the world's most dangerous chokepoint.">
+<meta name="twitter:card" content="summary">
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;min-height:100dvh;background:#070d1a;overflow-x:hidden}body{-webkit-tap-highlight-color:transparent}input[type=range]{accent-color:#f0c040}canvas{touch-action:none;display:block;margin:0 auto;border-radius:10px;max-width:100%}</style>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useCallback,useRef}=React;
+
+// ══════════ DATA ══════════
+const SHIPS={
+  handysize:{name:"Handysize",class:"Coastal Runner",capacity:350000,speed:18,maneuverability:10,draft:10,fuelBurn:20,color:"#45b7d1",lengthM:180,beamM:28,dwt:"50,000",hullHP:80,hitboxW:10,hitboxH:14,desc:"Tiny but agile.",pros:["Extreme agility"],cons:["Tiny cargo"],silhouette:{tanks:3,h:0.6}},
+  aframax:{name:"Aframax",class:"Light & Fast",capacity:750000,speed:16,maneuverability:8,draft:14,fuelBurn:35,color:"#4ecdc4",lengthM:245,beamM:42,dwt:"120,000",hullHP:100,hitboxW:12,hitboxH:16,desc:"Sports car of tankers.",pros:["High agility","Good speed"],cons:["Moderate cargo"],silhouette:{tanks:4,h:0.7}},
+  suezmax:{name:"Suezmax",class:"Workhorse",capacity:1000000,speed:14,maneuverability:6,draft:16,fuelBurn:55,color:"#f7b731",lengthM:285,beamM:48,dwt:"160,000",hullHP:120,hitboxW:14,hitboxH:20,desc:"Goldilocks tanker.",pros:["Balanced"],cons:["Average everything"],silhouette:{tanks:5,h:0.8}},
+  vlcc:{name:"VLCC",class:"Very Large",capacity:2000000,speed:11,maneuverability:3,draft:20,fuelBurn:85,color:"#eb3b5a",lengthM:330,beamM:58,dwt:"300,000",hullHP:150,hitboxW:18,hitboxH:26,desc:"2M barrels. A floating city.",pros:["Massive cargo"],cons:["Slow","Can't dodge"],silhouette:{tanks:6,h:0.9}},
+  ulcc:{name:"ULCC",class:"Ultra Large",capacity:3200000,speed:9,maneuverability:1,draft:24,fuelBurn:120,color:"#8854d0",lengthM:415,beamM:70,dwt:"500,000",hullHP:180,hitboxW:22,hitboxH:32,desc:"3.2M barrels. You ARE the horizon.",pros:["Legendary cargo"],cons:["Virtually immobile","Enormous hitbox"],silhouette:{tanks:8,h:1.0}},
+};
+const ORIGINS=[
+  {id:"ras_tanura",name:"Ras Tanura",country:"Saudi Arabia",flag:"🇸🇦",mapX:19,mapY:40,cargoBonus:1.0,riskMod:0.9,oilType:"Arab Light",price:72,sellPrice:85,color:"#2ecc71",desc:"World's largest oil export terminal."},
+  {id:"juaymah",name:"Ju'aymah",country:"Saudi Arabia",flag:"🇸🇦",mapX:17,mapY:38,cargoBonus:1.0,riskMod:0.85,oilType:"Arab Extra Light",price:75,sellPrice:90,color:"#4ecdc4",desc:"Premium light crude terminal."},
+  {id:"basra",name:"Al Basrah",country:"Iraq",flag:"🇮🇶",mapX:13,mapY:16,cargoBonus:1.1,riskMod:1.15,oilType:"Basra Heavy",price:65,sellPrice:78,color:"#f7b731",desc:"Cheaper crude, fuller tanks."},
+  {id:"kharg",name:"Kharg Island",country:"Iran",flag:"🇮🇷",mapX:22,mapY:26,cargoBonus:1.15,riskMod:1.3,oilType:"Iranian Light",price:58,sellPrice:68,color:"#e056a0",desc:"Iran's main terminal. Sanctioned."},
+  {id:"bandar",name:"Bandar Abbas",country:"Iran",flag:"🇮🇷",mapX:50,mapY:27,cargoBonus:1.2,riskMod:1.4,oilType:"Iranian Heavy",price:55,sellPrice:64,color:"#eb3b5a",desc:"Maximum cargo, maximum danger."},
+];
+// Routes from each origin converge toward the strait exit
+const ROUTES={
+  ras_tanura:[{x:19,y:40},{x:25,y:34},{x:31,y:30},{x:37,y:28},{x:43,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
+  juaymah:[{x:17,y:38},{x:23,y:33},{x:29,y:30},{x:36,y:28},{x:43,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
+  basra:[{x:13,y:16},{x:17,y:21},{x:22,y:26},{x:28,y:28},{x:35,y:28},{x:42,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
+  kharg:[{x:22,y:26},{x:28,y:27},{x:35,y:27},{x:42,y:27},{x:49,y:26},{x:54,y:30},{x:58,y:37},{x:62,y:44},{x:65,y:50}],
+  bandar:[{x:50,y:27},{x:54,y:29},{x:57,y:34},{x:60,y:40},{x:63,y:46},{x:65,y:50}],
+};
+const EQUIPMENT=[
+  {id:"ciws",name:"CIWS Phalanx",cost:450000,icon:"🔫",desc:"20mm autocannon",effects:"Auto-shoots diving drones. IRGC boats 40% slower."},
+  {id:"radar",name:"Adv. Radar",cost:320000,icon:"🛰️",desc:"Extended detection",effects:"Mines:1.5x glow. Storm:+50% vis."},
+  {id:"armor",name:"Hull Armor",cost:550000,icon:"🛡️",desc:"Reinforced hull",effects:"All damage -40%."},
+  {id:"escort",name:"Armed Escort",cost:950000,icon:"🚤",desc:"Security boat",effects:"Deters IRGC boats. Bribe -10."},
+  {id:"jammer",name:"EW Jammer",cost:380000,icon:"📡",desc:"Electronic warfare",effects:"Missiles 30% slower. 2 drones jammed."},
+  {id:"medic",name:"Medic",cost:150000,icon:"🏥",desc:"Combat medics",effects:"Survive fatal encounter (60% cargo loss)."},
+];
+const CONSUMABLES=[
+  {id:"flares",name:"IR Flares",cost:25000,icon:"🎆",max:10,desc:"Decoy flare",effects:"Deflect incoming missiles. Press F or double-tap to deploy."},
+  {id:"rounds",name:"Deck Gun Rounds",cost:15000,icon:"💥",max:25,desc:"50-cal ammo",effects:"Shoot boats, missiles & drones. Press SPACE or tap to fire."},
+];
+const CATASTROPHES=[
+  {text:"💥 SUBSURFACE MINE! Catastrophic breach!",fatal:true,hd:999,cl:0,rc:0},
+  {text:"🔥 Engine room fire!",fatal:false,hd:25,cl:0.15,rc:800000},
+  {text:"🌊 Rogue wave!",fatal:false,hd:20,cl:0.10,rc:0},
+  {text:"⚡ Electrical failure!",fatal:false,hd:5,cl:0,rc:350000},
+  {text:"🦈 Rudder seized!",fatal:false,hd:15,cl:0,rc:600000},
+  {text:"☢️ Saltwater in Tank 3!",fatal:false,hd:0,cl:0.08,rc:200000},
+];
+const CONSUMPTION={us:{name:"United States",daily:20e6,emoji:"🇺🇸"},eu:{name:"EU",daily:12e6,emoji:"🇪🇺"},china:{name:"China",daily:16e6,emoji:"🇨🇳"},world:{name:"World",daily:100e6,emoji:"🌍"},texas:{name:"Texas",daily:5.4e6,emoji:"🤠"}};
+const EVENTS=[
+  {id:"mines",name:"MINEFIELD",emoji:"💣",probability:0.7,miniGame:"mines",desc:"Mines in the water!",inst:"Steer through. 30 seconds. Ship size = bigger hitbox.",ctrl:"Arrows/WASD/Touch"},
+  {id:"drones",name:"DRONE SWARM",emoji:"🛩️",probability:0.75,miniGame:"drones",desc:"Shahed UAVs inbound!",inst:"Drones loiter then kamikaze dive. Tap to shoot them down before they hit. CIWS auto-engages divers.",ctrl:"Tap/Click"},
+  {id:"pirates",name:"IRGC FAST BOATS",emoji:"🇮🇷",probability:0.6,miniGame:"pirates",desc:"IRGC attack boats closing fast!",inst:"Evade IRGC fast boats pursuing you. Bigger ship = easier to catch.",ctrl:"Arrows/WASD/Touch"},
+  {id:"irgc",name:"IRGC PATROL",emoji:"🇮🇷",probability:0.75,miniGame:"negotiate",desc:"IRGC demands inspection.",inst:"Negotiate with the IRGC commander. Read his tells, choose your tactics.",ctrl:"Tap/Click"},
+  {id:"sandstorm",name:"SHAMAL",emoji:"🌪️",probability:0.5,miniGame:"sandstorm",desc:"Shamal dust storm — zero visibility!",inst:"Navigate to the exit beacon through the storm. Avoid obstacles you can barely see. Ship size = harder to squeeze through.",ctrl:"Arrows/WASD/Touch"},
+  {id:"missile",name:"ANTI-SHIP MISSILE",emoji:"🚀",probability:0.55,miniGame:"missile",desc:"Houthi cruise missile!",inst:"Dodge homing missiles. Bigger ship = bigger target.",ctrl:"Left/Right/Touch"},
+  {id:"navy",name:"US NAVY HAIL",emoji:"🇺🇸",probability:0.7,miniGame:"radio",desc:"Destroyer demands ID.",inst:"Track the moving frequency target and hold lock for 3s.",ctrl:"Slider"},
+  {id:"smuggler",name:"SMUGGLER",emoji:"🤫",probability:0.45,miniGame:"negotiate",desc:"Dhow offers off-books deal.",inst:"Negotiate with the smuggler. Choose your tactics carefully.",ctrl:"Tap/Click"},
+];
+
+// ══════════ UTILITIES ══════════
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function lerp(a,b,t){return a+(b-a)*t}
+function dst(a,b,c,d){return Math.sqrt((a-c)**2+(b-d)**2)}
+const S={bg:"#070d1a",panel:"rgba(10,18,35,0.94)",accent:"#f0c040",red:"#e74c3c",green:"#2ecc71",blue:"#1a8cff",dim:"#5a6d8a",text:"#c8d6e5",border:"rgba(80,120,180,0.15)",font:"'Courier New',monospace",titleFont:"'Georgia',serif"};
+const card={background:S.panel,border:"1px solid "+S.border,borderRadius:12,padding:18,marginBottom:12};
+const btn=(c=S.accent,fill=true)=>({background:fill?c:"transparent",color:fill?"#070d1a":c,border:"2px solid "+c,borderRadius:8,padding:"12px 28px",fontSize:15,fontWeight:"bold",cursor:"pointer",fontFamily:S.font});
+const wrap={minHeight:"100vh",background:"linear-gradient(180deg,#070d1a,#0c1a2e,#0a2240)",color:S.text,fontFamily:S.font,padding:16,fontSize:14};
+const gameWrap={background:"linear-gradient(180deg,#070d1a,#0c1a2e,#0a2240)",color:S.text,fontFamily:S.font,padding:16,fontSize:14,height:"100dvh",display:"flex",flexDirection:"column",overflow:"hidden"};
+const fieldCenter={flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",minHeight:0,width:"100%"};
+
+// ══════════ LEADERBOARD (localStorage) ══════════
+function getLeaderboard(){try{return JSON.parse(localStorage.getItem("soh_lb")||"[]")}catch(e){return[]}}
+function saveScore(entry){try{const lb=getLeaderboard();lb.push(entry);lb.sort((a,b)=>b.profit-a.profit);localStorage.setItem("soh_lb",JSON.stringify(lb.slice(0,20)))}catch(e){}}
+
+// ══════════ SHIP GRAPHIC ══════════
+function ShipGraphic({shipKey,width=280,showLabel=true}){
+  const s=SHIPS[shipKey];if(!s)return null;
+  const{tanks,h}=s.silhouette,vw=300,vh=100,hullW=40+tanks*30,hullH=20+h*25,sx=(vw-hullW)/2,sy=vh/2-hullH/2+5;
+  return(<svg viewBox={"0 0 "+vw+" "+vh} style={{width,display:"block"}}>
+    <rect x="0" y={sy+hullH*0.6} width={vw} height={vh-sy-hullH*0.6} fill="#0a2744" opacity="0.4"/>
+    <path d={"M"+(sx+10)+","+(sy+hullH*0.6)+" L"+sx+","+(sy+hullH*0.35)+" L"+(sx+hullW*0.08)+","+sy+" L"+(sx+hullW*0.92)+","+sy+" L"+(sx+hullW)+","+(sy+hullH*0.35)+" L"+(sx+hullW-10)+","+(sy+hullH*0.6)+" Z"} fill={s.color} stroke="rgba(0,0,0,0.2)" strokeWidth="0.5" opacity="0.85"/>
+    <rect x={sx+hullW*0.08} y={sy-3} width={hullW*0.84} height={4} fill="#d4a574" rx="1"/>
+    {Array.from({length:tanks}).map((_,i)=>{const tw=(hullW*0.75)/tanks-3,tx=sx+hullW*0.12+i*((hullW*0.75)/tanks);return <rect key={i} x={tx} y={sy-8} width={tw} height={6} fill="#444" rx="2" stroke="#555" strokeWidth="0.3"/>})}
+    <rect x={sx+hullW*0.78} y={sy-20} width={hullW*0.15} height={17} fill="#bbb" rx="1.5"/>
+    <line x1={sx+hullW*0.84} y1={sy-20} x2={sx+hullW*0.84} y2={sy-30} stroke="#888" strokeWidth="1"/>
+    {showLabel&&<text x={vw/2} y={vh-4} fill={s.color} fontSize="10" textAnchor="middle" fontFamily={S.font} fontWeight="bold">{s.name} - {s.lengthM}m</text>}
+  </svg>);
+}
+
+// ══════════ SVG MAP ══════════
+function GameMap({originId,progress,events,eventIdx,selected,onSelect,mode}){
+  const route=originId?ROUTES[originId]:null;
+  let shipX=50,shipY=50;
+  if(route&&progress!=null){
+    const t=clamp(progress,0,1);
+    const si=Math.min(Math.floor(t*(route.length-1)),route.length-2);
+    const st=(t*(route.length-1))-si;
+    shipX=lerp(route[si].x,route[si+1].x,st);
+    shipY=lerp(route[si].y,route[si+1].y,st);
+  }
+  const hov=useRef(null);const[hovId,setHovId]=useState(null);
+  return(<div>
+    <svg viewBox="0 0 100 80" style={{width:"100%",maxWidth:580,display:"block",margin:"0 auto",borderRadius:10,border:"1px solid "+S.border,background:"url('map-bg.png') center/contain no-repeat, #081020"}}>
+      {/* Map background is provided by map-bg.png — coastlines, labels, and fleet ships are baked in */}
+      {/* Route line */}
+      {route&&<polyline points={route.map(p=>p.x+","+p.y).join(" ")} fill="none" stroke={S.accent} strokeWidth="0.8" strokeDasharray="2,2" opacity="0.3"/>}
+      {/* Event markers on route */}
+      {route&&events&&events.map((ev,i)=>{
+        const evT=(i+0.5)/events.length;
+        const ei=Math.min(Math.floor(evT*(route.length-1)),route.length-2);
+        const et=(evT*(route.length-1))-ei;
+        const ex=lerp(route[ei].x,route[ei+1].x,et);
+        const ey=lerp(route[ei].y,route[ei+1].y,et);
+        const done=i<eventIdx;
+        return <g key={i}><circle cx={ex} cy={ey} r="1.8" fill={done?"rgba(46,204,113,0.2)":i===eventIdx?S.accent+"44":"rgba(231,76,60,0.2)"} stroke={done?S.green:i===eventIdx?S.accent:S.red} strokeWidth="0.3"/><text x={ex} y={ey+0.7} textAnchor="middle" fontSize="2">{ev.emoji}</text></g>;
+      })}
+      {/* Port markers */}
+      {ORIGINS.map(o=>{
+        const isH=hovId===o.id,isS=selected===o.id;
+        return <g key={o.id} style={{cursor:mode==="select"?"pointer":"default"}} onMouseEnter={()=>setHovId(o.id)} onMouseLeave={()=>setHovId(null)} onClick={()=>mode==="select"&&onSelect&&onSelect(o.id)}>
+          {(isH||isS)&&<circle cx={o.mapX} cy={o.mapY} r="3" fill="none" stroke={o.color} strokeWidth="0.3" opacity="0.5"><animate attributeName="r" values="2;4;2" dur="2s" repeatCount="indefinite"/></circle>}
+          <circle cx={o.mapX} cy={o.mapY} r={isS?2:isH?1.5:1} fill={(isH||isS)?o.color:"#fff"} stroke={o.color} strokeWidth="0.3" opacity={(isH||isS)?1:0.5}/>
+          <text x={o.mapX} y={o.mapY-3} fill={(isH||isS)?"#fff":"#8899aa"} fontSize={(isH||isS)?"2":"1.6"} textAnchor="middle" fontFamily="monospace">{o.flag} {o.name}</text>
+        </g>;
+      })}
+      {/* Ship position */}
+      {route&&progress!=null&&<g>
+        <circle cx={shipX} cy={shipY} r="2" fill={S.accent} opacity="0.3"><animate attributeName="r" values="1.5;3;1.5" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite"/></circle>
+        <circle cx={shipX} cy={shipY} r="1.2" fill={S.accent} stroke="#fff" strokeWidth="0.3"/>
+        <text x={shipX} y={shipY-3} textAnchor="middle" fill="#fff" fontSize="1.6" fontFamily="monospace">{SHIPS[Object.keys(SHIPS)[0]]&&"▶"}</text>
+      </g>}
+    </svg>
+    {/* Info panel for hovered/selected port */}
+    {mode==="select"&&(hovId||selected)&&(()=>{
+      const o=ORIGINS.find(p=>p.id===(hovId||selected));if(!o)return null;
+      return <div style={{...card,marginTop:10,borderColor:o.color+"44"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+          <span style={{fontSize:26}}>{o.flag}</span>
+          <div><div style={{fontFamily:S.titleFont,fontSize:16,color:o.color,fontWeight:"bold"}}>{o.name}, {o.country}</div>
+          <div style={{fontSize:12,color:S.dim}}>{o.oilType} | Buy ${o.price} → Sell ${o.sellPrice}/bbl</div></div>
+        </div>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.6,margin:"4px 0"}}>{o.desc}</p>
+        <div style={{display:"flex",gap:14,fontSize:12,marginTop:6,flexWrap:"wrap"}}>
+          <span style={{color:o.cargoBonus>1?S.green:"#8ac"}}>Cargo {o.cargoBonus>1?"+"+((o.cargoBonus-1)*100).toFixed(0)+"%":"Base"}</span>
+          <span style={{color:o.riskMod>1?S.red:S.green}}>Risk {o.riskMod>1?"+"+((o.riskMod-1)*100).toFixed(0)+"%":"-"+((1-o.riskMod)*100).toFixed(0)+"%"}</span>
+          <span style={{color:S.green}}>Margin ${o.sellPrice-o.price}/bbl</span>
+        </div>
+      </div>;
+    })()}
+    {/* Progress bar for sailing */}
+    {progress!=null&&<div style={{marginTop:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:S.dim}}><span>Departure</span><span>Strait</span><span>US Fleet</span></div>
+      <div style={{background:"rgba(255,255,255,0.06)",borderRadius:4,height:8,overflow:"hidden",marginTop:2}}>
+        <div style={{width:(clamp(progress,0,1)*100)+"%",height:"100%",background:"linear-gradient(90deg,"+S.accent+","+S.green+")",borderRadius:4,transition:"width 0.5s"}}/>
+      </div>
+      <div style={{textAlign:"center",fontSize:12,color:S.dim,marginTop:4}}>Transit: {(clamp(progress,0,1)*100).toFixed(0)}%</div>
+    </div>}
+  </div>);
+}
+
+// ══════════ MINEFIELD GAME (30s, ship-size hitbox) ══════════
+function MineFieldGame({onComplete,agility,equip,shipKey}){
+  const ref=useRef(null);
+  const s=SHIPS[shipKey]||SHIPS.suezmax;
+  useEffect(()=>{
+    const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
+    const spd=2+agility*0.35,det=equip.includes("radar")?1.5:1,arm=equip.includes("armor")?0.6:1;
+    const hbW=s.hitboxW,hbH=s.hitboxH;
+    const TOTAL_S=30,SAFE_S=25;
+    const g={ship:{x:W/2,y:H-55},mines:[],dodged:0,hits:0,active:true,keys:{},particles:[],wake:[],startTime:performance.now(),elapsed:0,shk:0};
+    for(let i=0;i<20;i++)g.mines.push({x:Math.random()*(W-50)+25,y:-Math.random()*900-80,r:10+Math.random()*7,hit:false,hitTimer:0});
+    const kd=e=>{g.keys[e.key]=true;if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"].includes(e.key))e.preventDefault()};
+    const ku=e=>{g.keys[e.key]=false};
+    window.addEventListener("keydown",kd);window.addEventListener("keyup",ku);
+    let tch=null;
+    const ts=e=>{tch={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault()};
+    const te=()=>{tch=null};
+    canvas.addEventListener("touchstart",ts,{passive:false});canvas.addEventListener("touchmove",ts,{passive:false});canvas.addEventListener("touchend",te);
+    let lastFrame=performance.now();
+    const loop=(now)=>{
+      if(!g.active)return;
+      const dt=Math.min((now-lastFrame)/16.67,3);lastFrame=now;
+      g.elapsed=(now-g.startTime)/1000;
+      const progress=g.elapsed/TOTAL_S;
+      const inSafe=g.elapsed>=SAFE_S,safeProg=inSafe?(g.elapsed-SAFE_S)/(TOTAL_S-SAFE_S):0;
+      const animT=g.elapsed*60;
+      // Screen shake
+      g.shk*=Math.pow(0.88,dt);const sx=(Math.random()-0.5)*g.shk,sy=(Math.random()-0.5)*g.shk;
+      ctx.save();ctx.translate(sx,sy);
+      // Ocean gradient
+      const bg=ctx.createLinearGradient(0,0,0,H);
+      bg.addColorStop(0,inSafe?"#081a30":"#040e1f");bg.addColorStop(1,inSafe?"#0e2848":"#081828");
+      ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+      // Animated wave lines
+      ctx.strokeStyle="rgba(30,80,140,0.1)";ctx.lineWidth=1;
+      for(let i=0;i<14;i++){ctx.beginPath();const wy=i*(H/13)+Math.sin(animT*0.018+i)*6;for(let x=0;x<=W;x+=8){const y=wy+Math.sin(x*0.025+animT*0.012+i*2)*4;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}
+      // Movement
+      if(g.keys["ArrowLeft"]||g.keys["a"])g.ship.x-=spd*dt;if(g.keys["ArrowRight"]||g.keys["d"])g.ship.x+=spd*dt;
+      if(g.keys["ArrowUp"]||g.keys["w"])g.ship.y-=spd*0.7*dt;if(g.keys["ArrowDown"]||g.keys["s"])g.ship.y+=spd*0.7*dt;
+      if(tch){const r=canvas.getBoundingClientRect();g.ship.x+=((tch.x-r.left)/r.width*W-g.ship.x)*0.06*dt;g.ship.y+=((tch.y-r.top)/r.height*H-g.ship.y)*0.04*dt}
+      g.ship.x=clamp(g.ship.x,hbW,W-hbW);g.ship.y=clamp(g.ship.y,44,H-25);
+      // Wake trail
+      if(Math.random()<0.5)g.wake.push({x:g.ship.x+(Math.random()-0.5)*hbW*0.6,y:g.ship.y+hbH*0.7,l:18,sz:1.5+Math.random()*2.5});
+      g.wake=g.wake.filter(w=>{w.l-=dt;w.y+=0.4*dt;w.sz+=0.06*dt;ctx.fillStyle="rgba(160,210,255,"+(w.l/18)*0.18+")";ctx.beginPath();ctx.arc(w.x,w.y,w.sz,0,Math.PI*2);ctx.fill();return w.l>0});
+      // Mines
+      const ms=(0.7+g.elapsed*0.03)*dt;
+      g.mines.forEach(m=>{if(m.hit){m.hitTimer-=dt;if(m.hitTimer<=0){m.hit=false;if(g.elapsed<SAFE_S){m.y=-60;m.x=Math.random()*(W-50)+25}else m.y=H+999}return}m.y+=ms;
+        if(m.y>H+30){if(inSafe){m.y=H+999;return}m.y=-50-Math.random()*120;m.x=Math.random()*(W-50)+25;g.dodged++}
+        if(m.y>H+50)return;
+        const dx=Math.abs(g.ship.x-m.x),dy=Math.abs(g.ship.y-m.y);
+        if(dx<m.r+hbW&&dy<m.r+hbH){
+          m.hit=true;m.hitTimer=30;g.hits++;g.shk=16;
+          for(let p=0;p<18;p++)g.particles.push({x:m.x,y:m.y,vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6,l:28+Math.random()*12,c:["#ff6b35","#ffcc00","#ff4444","#fff8e0"][p%4],sz:2+Math.random()*3});
+          for(let p=0;p<8;p++)g.particles.push({x:m.x,y:m.y,vx:(Math.random()-0.5)*3,vy:-2-Math.random()*4,l:22,c:"rgba(120,190,255,0.5)",sz:1.5+Math.random()*2});
+        }
+        // Underwater glow
+        ctx.fillStyle="rgba(90,30,30,0.12)";ctx.beginPath();ctx.arc(m.x,m.y,m.r*2.2,0,Math.PI*2);ctx.fill();
+        // Chain
+        ctx.strokeStyle="rgba(100,100,100,0.25)";ctx.lineWidth=1;ctx.setLineDash([2,3]);
+        ctx.beginPath();ctx.moveTo(m.x,m.y+m.r);ctx.lineTo(m.x+Math.sin(animT*0.02)*3,m.y+m.r+28);ctx.stroke();ctx.setLineDash([]);
+        // Mine body
+        const mg=ctx.createRadialGradient(m.x-m.r*0.3,m.y-m.r*0.3,1,m.x,m.y,m.r);
+        mg.addColorStop(0,"#555");mg.addColorStop(1,"#222");
+        ctx.fillStyle=mg;ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle="#444";ctx.lineWidth=0.8;ctx.stroke();
+        // Horns
+        for(let a=0;a<6;a++){const ang=(a/6)*Math.PI*2;const hx=m.x+Math.cos(ang)*(m.r+1.5);const hy=m.y+Math.sin(ang)*(m.r+1.5);
+          ctx.fillStyle="#666";ctx.beginPath();ctx.arc(hx,hy,3,0,Math.PI*2);ctx.fill();ctx.fillStyle="#999";ctx.beginPath();ctx.arc(hx,hy,1.3,0,Math.PI*2);ctx.fill()}
+        // Blinking indicator
+        ctx.fillStyle="#e74c3c";ctx.globalAlpha=0.5+Math.sin(animT*0.08+m.x)*0.5;
+        ctx.beginPath();ctx.arc(m.x,m.y-m.r*0.35,2.5,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+        // Proximity warning
+        const dr=(m.r+45)*det;const d=dst(g.ship.x,g.ship.y,m.x,m.y);
+        if(d<dr){const a=(1-d/dr);ctx.strokeStyle="rgba(231,76,60,"+a*0.45+")";ctx.lineWidth=det>1?2.5:1.5;ctx.beginPath();ctx.arc(m.x,m.y,m.r+5,0,Math.PI*2);ctx.stroke();
+          ctx.strokeStyle="rgba(231,76,60,"+a*0.12+")";ctx.lineWidth=1;ctx.beginPath();ctx.arc(m.x,m.y,m.r+9+Math.sin(animT*0.12)*3,0,Math.PI*2);ctx.stroke()}
+      });
+      // Particles
+      g.particles=g.particles.filter(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=0.04*dt;p.l-=dt;ctx.fillStyle=p.c;ctx.globalAlpha=clamp(p.l/18,0,1);ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;return p.l>0});
+      // Clear waters message
+      if(g.elapsed>SAFE_S-5&&!inSafe){ctx.fillStyle="rgba(46,204,113,"+(Math.sin(animT*0.1)*0.3+0.5)+")";ctx.font="bold 14px monospace";ctx.textAlign="center";ctx.fillText("▼ CLEAR WATERS AHEAD ▼",W/2,56);ctx.textAlign="start"}
+      if(inSafe&&safeProg>0.5){ctx.fillStyle="rgba(46,204,113,"+clamp(safeProg*2-0.5,0,1)+")";ctx.font="bold 20px monospace";ctx.textAlign="center";ctx.fillText("— SAFE WATERS —",W/2,H/2-15);ctx.font="14px monospace";ctx.fillText("Minefield cleared",W/2,H/2+10);ctx.textAlign="start"}
+      // Ship — tanker shape
+      ctx.save();ctx.translate(g.ship.x,g.ship.y);
+      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(1.5,hbH*0.4,hbW*1.05,hbH*0.25,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=s.color;ctx.globalAlpha=0.9;
+      ctx.beginPath();ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.8,hbW*0.8,-hbH*0.2,hbW,hbH*0.4);ctx.lineTo(hbW*0.85,hbH*0.7);ctx.lineTo(-hbW*0.85,hbH*0.7);ctx.lineTo(-hbW,hbH*0.4);ctx.bezierCurveTo(-hbW*0.8,-hbH*0.2,-hbW*0.4,-hbH*0.8,0,-hbH);ctx.fill();ctx.globalAlpha=1;
+      ctx.fillStyle="rgba(0,0,0,0.15)";ctx.fillRect(-hbW*0.55,-hbH*0.15,hbW*1.1,hbH*0.55);
+      ctx.fillStyle="#bbb";ctx.fillRect(hbW*0.2,-hbH*0.55,hbW*0.35,hbH*0.45);
+      ctx.fillStyle="#ddd";ctx.fillRect(hbW*0.25,-hbH*0.48,hbW*0.25,hbH*0.15);
+      ctx.restore();
+      // HUD
+      ctx.fillStyle="rgba(4,14,31,0.88)";ctx.fillRect(0,0,W,42);
+      ctx.strokeStyle="rgba(80,120,180,0.2)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,42);ctx.lineTo(W,42);ctx.stroke();
+      const tl=Math.max(0,Math.ceil(TOTAL_S-g.elapsed));
+      ctx.fillStyle=tl<=5?S.red:S.accent;ctx.font="bold 17px monospace";ctx.textAlign="right";ctx.fillText(tl+"s",W-14,28);ctx.textAlign="start";
+      ctx.fillStyle="#fff";ctx.font="bold 13px monospace";ctx.fillText("Dodged: "+g.dodged,14,17);
+      ctx.fillStyle=g.hits>=2?S.red:g.hits>=1?S.accent:"#ccc";ctx.fillText("Hits: "+g.hits+"/3",14,34);
+      ctx.fillStyle="rgba(255,255,255,0.07)";ctx.fillRect(W*0.32,8,W*0.33,4);
+      ctx.fillStyle=inSafe?S.green:S.accent;ctx.fillRect(W*0.32,8,W*0.33*clamp(progress,0,1),4);
+      ctx.fillStyle=S.green;ctx.fillRect(W*0.32+W*0.33*(SAFE_S/TOTAL_S)-1,6,2,8);
+      ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fillRect(W*0.32,16,W*0.33,4);
+      const hpPct=clamp(1-g.hits/3,0,1);ctx.fillStyle=hpPct>0.6?S.green:hpPct>0.3?S.accent:S.red;
+      ctx.fillRect(W*0.32,16,W*0.33*hpPct,4);
+      ctx.fillStyle="rgba(255,255,255,0.2)";ctx.font="9px monospace";ctx.fillText(s.name,W*0.32,34);
+      ctx.restore();
+      if(g.hits>=3||g.elapsed>=TOTAL_S){g.active=false;onComplete({success:g.hits<2,hullDmg:Math.round((g.hits===0?0:g.hits===1?15:g.hits===2?25:40)*arm),cargoLoss:(g.hits<=1?0:g.hits===2?0.05:0.12)*arm,repairCost:g.hits>0?200000*g.hits:0,msg:g.hits===0?"Perfect!":g.hits===1?"Minor damage.":g.hits===2?"Hull breached.":"Critical damage."});return}
+      requestAnimationFrame(loop);
+    };requestAnimationFrame(loop);
+    return()=>{g.active=false;window.removeEventListener("keydown",kd);window.removeEventListener("keyup",ku);canvas.removeEventListener("touchstart",ts);canvas.removeEventListener("touchmove",ts);canvas.removeEventListener("touchend",te)};
+  },[]);
+  return <canvas ref={ref} style={{border:"1px solid "+S.border}}/>;
+}
+
+// ══════════ IRGC FAST BOATS (evade pursuers) ══════════
+function PirateChaseGame({onComplete,shipSpeed,equip,shipKey,rounds=0}){
+  const ref=useRef(null);const s=SHIPS[shipKey]||SHIPS.suezmax;
+  useEffect(()=>{
+    const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
+    const spd=1.8+shipSpeed*0.2,arm=equip.includes("armor")?0.6:1;
+    const boatCount=equip.includes("escort")?2:4;
+    const boatSpdMult=equip.includes("ciws")?0.6:1;
+    const hbW=s.hitboxW,hbH=s.hitboxH;
+    const TOTAL_S=20;
+    const g={ship:{x:W/2,y:H-80},boats:[],active:true,keys:{},hits:0,startTime:performance.now(),elapsed:0,
+      particles:[],wakes:[],shk:0,flash:0,warnings:[],roundCharges:rounds,roundCooldown:0,kills:0};
+    // Spawn IRGC fast boats at different edges with varied behavior
+    const spawnZones=[
+      {x:W*0.15,y:H*0.08},{x:W*0.85,y:H*0.12},{x:W*0.5,y:H*0.05},{x:W*0.3,y:H*0.2},{x:W*0.7,y:H*0.18},{x:W*0.15,y:H*0.25}
+    ];
+    for(let i=0;i<boatCount;i++){
+      const zone=spawnZones[i%spawnZones.length];
+      g.boats.push({
+        x:zone.x+((Math.random()-0.5)*40),y:zone.y+((Math.random()-0.5)*20),
+        vx:(Math.random()-0.5)*1.5,vy:0.3+Math.random()*0.4,cooldown:0,
+        // Each boat gets a unique behavior pattern
+        behavior:i%4, // 0=chase, 1=flank-left, 2=flank-right, 3=ambush
+        angle:Math.random()*Math.PI*2,orbitPhase:Math.random()*Math.PI*2,
+        trail:[],id:i,speedMod:0.8+Math.random()*0.4,
+        boardAttempt:0,flashT:0
+      });
+    }
+    const kd=e=>{g.keys[e.key]=true;if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"].includes(e.key))e.preventDefault();
+      // SPACE = fire round at nearest boat
+      if(e.key===" "&&g.roundCharges>0&&g.roundCooldown<=0){
+        g.roundCharges--;g.roundCooldown=12;
+        let nearest=null,nearDist=Infinity;
+        g.boats.forEach(p=>{if(p.cooldown>0)return;const d=dst(g.ship.x,g.ship.y,p.x,p.y);if(d<nearDist){nearDist=d;nearest=p}});
+        if(nearest&&nearDist<300){
+          g.particles.push({x:g.ship.x,y:g.ship.y-hbH,x2:nearest.x,y2:nearest.y,life:1,c:"#ffaa00",sz:2,type:"tracer"});
+          const hitChance=nearDist<60?0.95:nearDist<120?0.75:nearDist<200?0.5:0.3;
+          if(Math.random()<hitChance){
+            g.kills++;
+            for(let j=0;j<15;j++){const a=Math.random()*Math.PI*2,v=1+Math.random()*3;
+              g.particles.push({x:nearest.x,y:nearest.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,sz:2+Math.random()*3,
+                c:["#ff4444","#ff8800","#ffcc00"][Math.floor(Math.random()*3)],type:"fire"})}
+            // Respawn boat far away with long cooldown
+            const edge=Math.random();
+            if(edge<0.5){nearest.x=edge<0.25?-20:W+20;nearest.y=Math.random()*H*0.5}else{nearest.x=Math.random()*W;nearest.y=-20}
+            nearest.vx=0;nearest.vy=0;nearest.cooldown=80;nearest.trail=[];
+          } else {
+            for(let p=0;p<4;p++)g.particles.push({x:nearest.x+(Math.random()-0.5)*25,y:nearest.y+(Math.random()-0.5)*25,
+              vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2,life:0.4,sz:1+Math.random(),c:"#ffaa44",type:"fire"});
+          }
+        } else {
+          g.particles.push({x:g.ship.x,y:g.ship.y-hbH,x2:g.ship.x+(Math.random()-0.5)*60,y2:g.ship.y-180,life:0.4,c:"#ffaa00",sz:1,type:"tracer"});
+        }
+      }
+    };
+    const ku=e=>{g.keys[e.key]=false};
+    // Click/tap to fire rounds
+    const fireRound=()=>{if(g.roundCharges<=0||g.roundCooldown>0)return;
+      g.roundCharges--;g.roundCooldown=12;
+      let nearest=null,nearDist=Infinity;
+      g.boats.forEach(p=>{if(p.cooldown>0)return;const d=dst(g.ship.x,g.ship.y,p.x,p.y);if(d<nearDist){nearDist=d;nearest=p}});
+      if(nearest&&nearDist<300){
+        g.particles.push({x:g.ship.x,y:g.ship.y-hbH,x2:nearest.x,y2:nearest.y,life:1,c:"#ffaa00",sz:2,type:"tracer"});
+        const hitChance=nearDist<60?0.95:nearDist<120?0.75:nearDist<200?0.5:0.3;
+        if(Math.random()<hitChance){g.kills++;
+          for(let j=0;j<15;j++){const a=Math.random()*Math.PI*2,v=1+Math.random()*3;
+            g.particles.push({x:nearest.x,y:nearest.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,sz:2+Math.random()*3,
+              c:["#ff4444","#ff8800","#ffcc00"][Math.floor(Math.random()*3)],type:"fire"})}
+          const edge=Math.random();if(edge<0.5){nearest.x=edge<0.25?-20:W+20;nearest.y=Math.random()*H*0.5}else{nearest.x=Math.random()*W;nearest.y=-20}
+          nearest.vx=0;nearest.vy=0;nearest.cooldown=80;nearest.trail=[];
+        }
+      }
+    };
+    let tapped=false;
+    const cc=e=>{e.preventDefault();fireRound();tapped=true;setTimeout(()=>{tapped=false},200)};
+    canvas.addEventListener("click",cc);
+    window.addEventListener("keydown",kd);window.addEventListener("keyup",ku);
+    let tch=null;const ts=e=>{tch={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault()};const te=()=>{tch=null};
+    canvas.addEventListener("touchstart",ts,{passive:false});canvas.addEventListener("touchmove",ts,{passive:false});canvas.addEventListener("touchend",te);
+    let lastFrame=performance.now();
+    const loop=(now)=>{
+      if(!g.active)return;
+      const dt=Math.min((now-lastFrame)/16.67,3);lastFrame=now;
+      g.elapsed=(now-g.startTime)/1000;
+      const t=g.elapsed;
+      if(g.roundCooldown>0)g.roundCooldown-=dt;
+      // Screen shake
+      const sx=g.shk>0.3?(Math.random()-0.5)*g.shk*6:0;
+      const sy=g.shk>0.3?(Math.random()-0.5)*g.shk*6:0;
+      if(g.shk>0)g.shk*=Math.pow(0.92,dt);
+      ctx.save();ctx.translate(sx,sy);
+      // Ocean background with depth gradient
+      const grad=ctx.createLinearGradient(0,0,0,H);
+      grad.addColorStop(0,"#041225");grad.addColorStop(0.3,"#06192f");grad.addColorStop(0.7,"#0a2240");grad.addColorStop(1,"#0d2a4a");
+      ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+      // Animated ocean waves
+      ctx.globalAlpha=0.08;
+      for(let w=0;w<6;w++){ctx.strokeStyle=w%2===0?"#1a6090":"#0e4060";ctx.lineWidth=1;ctx.beginPath();
+        for(let x=0;x<W;x+=2){const y=w*85+28+Math.sin(x*0.015+t*0.8+w*1.5)*12+Math.sin(x*0.03+t*1.2)*5;
+          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}
+      ctx.globalAlpha=1;
+      // Subtle moonlight reflection on water
+      const moonX=W*0.7,moonGrad=ctx.createRadialGradient(moonX,0,0,moonX,0,180);
+      moonGrad.addColorStop(0,"rgba(140,180,220,0.04)");moonGrad.addColorStop(1,"rgba(0,0,0,0)");
+      ctx.fillStyle=moonGrad;ctx.fillRect(0,0,W,H);
+      // Move player ship
+      if(g.keys["ArrowLeft"]||g.keys["a"])g.ship.x-=spd*dt;if(g.keys["ArrowRight"]||g.keys["d"])g.ship.x+=spd*dt;
+      if(g.keys["ArrowUp"]||g.keys["w"])g.ship.y-=spd*0.6*dt;if(g.keys["ArrowDown"]||g.keys["s"])g.ship.y+=spd*0.6*dt;
+      if(tch){const r=canvas.getBoundingClientRect();g.ship.x+=((tch.x-r.left)/r.width*W-g.ship.x)*0.06*dt;g.ship.y+=((tch.y-r.top)/r.height*H-g.ship.y)*0.04*dt}
+      g.ship.x=clamp(g.ship.x,hbW+4,W-hbW-4);g.ship.y=clamp(g.ship.y,40,H-30);
+      // Ship wake trail
+      if(Math.random()<0.4)g.wakes.push({x:g.ship.x+(Math.random()-0.5)*hbW,y:g.ship.y+hbH*0.7,life:1,sz:2+Math.random()*3});
+      // Update & draw IRGC boats with DISTINCT behaviors
+      g.boats.forEach((p,pi)=>{
+        if(p.cooldown>0){p.cooldown-=dt;p.flashT=Math.max(0,p.flashT-dt*0.05);return}
+        const dx=g.ship.x-p.x,dy=g.ship.y-p.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        const aggression=0.06+t*0.002; // boats get more aggressive over time
+        const pSpd=boatSpdMult*p.speedMod;
+        // Boat-to-boat separation force (prevents clumping!)
+        let sepX=0,sepY=0;
+        g.boats.forEach((other,oi)=>{
+          if(oi===pi||other.cooldown>0)return;
+          const odx=p.x-other.x,ody=p.y-other.y,od=Math.sqrt(odx*odx+ody*ody)||1;
+          if(od<70){const force=Math.max(0,(70-od)/70)*0.15;sepX+=odx/od*force;sepY+=ody/od*force}
+        });
+        // Different boat behaviors
+        switch(p.behavior){
+          case 0: // Direct chase
+            p.vx+=(dx/d*aggression+sepX)*pSpd*dt;p.vy+=(dy/d*aggression*0.8+sepY)*pSpd*dt;break;
+          case 1: // Flank left — tries to circle around
+            p.orbitPhase+=0.02*dt;
+            const flankLX=g.ship.x-Math.cos(p.orbitPhase)*80,flankLY=g.ship.y-Math.sin(p.orbitPhase)*50;
+            p.vx+=((flankLX-p.x)/d*aggression*1.3+sepX)*pSpd*dt;p.vy+=((flankLY-p.y)/d*aggression+sepY)*pSpd*dt;break;
+          case 2: // Flank right — opposite orbit
+            p.orbitPhase-=0.02*dt;
+            const flankRX=g.ship.x+Math.cos(p.orbitPhase)*80,flankRY=g.ship.y+Math.sin(p.orbitPhase)*50;
+            p.vx+=((flankRX-p.x)/d*aggression*1.3+sepX)*pSpd*dt;p.vy+=((flankRY-p.y)/d*aggression+sepY)*pSpd*dt;break;
+          case 3: // Ambush — waits ahead, then dashes
+            if(d>120){const ahead=g.ship.y-100;p.vx+=((g.ship.x-p.x)/d*aggression*0.5+sepX)*pSpd*dt;
+              p.vy+=((ahead-p.y)/(Math.abs(ahead-p.y)||1)*aggression*0.8+sepY)*pSpd*dt}
+            else{p.vx+=(dx/d*aggression*2+sepX)*pSpd*dt;p.vy+=(dy/d*aggression*2+sepY)*pSpd*dt}break;
+        }
+        p.vx*=Math.pow(0.96,dt);p.vy*=Math.pow(0.96,dt);
+        p.x+=p.vx*dt;p.y+=p.vy*dt;
+        // Keep boats in bounds
+        p.x=clamp(p.x,10,W-10);p.y=clamp(p.y,10,H-30);
+        p.angle=Math.atan2(p.vy,p.vx);
+        // Boat trail (skiff wake)
+        if(Math.random()<0.3)p.trail.push({x:p.x,y:p.y,life:1});
+        if(p.trail.length>12)p.trail.shift();
+        // Warning indicator when boat is close
+        if(d<80&&d>30){
+          const warnAlpha=Math.max(0,(80-d)/50)*0.6;
+          ctx.strokeStyle="rgba(231,76,60,"+warnAlpha+")";ctx.lineWidth=1;ctx.setLineDash([4,4]);
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(g.ship.x,g.ship.y);ctx.stroke();ctx.setLineDash([]);
+        }
+        // Collision check
+        if(Math.abs(g.ship.x-p.x)<hbW+10&&Math.abs(g.ship.y-p.y)<hbH+8){
+          g.hits++;g.shk=1;g.flash=1;
+          // Explosion particles
+          for(let j=0;j<20;j++)g.particles.push({x:p.x+(Math.random()-0.5)*20,y:p.y+(Math.random()-0.5)*10,
+            vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4-1,life:1,
+            c:["#ff4444","#ff8800","#ffcc00","#fff"][Math.floor(Math.random()*4)],sz:2+Math.random()*4});
+          // Respawn boat at a random edge, far from player
+          const edge=Math.random();
+          if(edge<0.25){p.x=-15;p.y=Math.random()*H*0.6}
+          else if(edge<0.5){p.x=W+15;p.y=Math.random()*H*0.6}
+          else if(edge<0.75){p.x=Math.random()*W;p.y=-15}
+          else{p.x=20+Math.random()*(W-40);p.y=10+Math.random()*H*0.15}
+          p.vx=0;p.vy=0;p.cooldown=50;p.trail=[];p.flashT=1;
+          // Cycle behavior on respawn for variety
+          p.behavior=(p.behavior+1)%4;
+        }
+        // Draw boat trail
+        p.trail.forEach((tr,ti)=>{tr.life-=0.04*dt;
+          if(tr.life>0){ctx.globalAlpha=tr.life*0.15;ctx.fillStyle="#4a2020";ctx.beginPath();ctx.ellipse(tr.x,tr.y+2,4,2,0,0,Math.PI*2);ctx.fill()}
+        });
+        p.trail=p.trail.filter(tr=>tr.life>0);
+        ctx.globalAlpha=1;
+        // Draw IRGC fast boat
+        ctx.save();ctx.translate(p.x,p.y);
+        const drawAngle=Math.atan2(dy,dx); // face toward player
+        ctx.rotate(drawAngle+Math.PI/2);
+        // Hull shadow
+        ctx.fillStyle="rgba(0,0,0,0.3)";ctx.beginPath();ctx.ellipse(2,3,10,5,0,0,Math.PI*2);ctx.fill();
+        // Military hull — dark olive/navy
+        ctx.fillStyle="#2a3a2a";ctx.beginPath();ctx.moveTo(0,-12);ctx.bezierCurveTo(-8,-4,-9,6,-7,10);
+        ctx.lineTo(7,10);ctx.bezierCurveTo(9,6,8,-4,0,-12);ctx.fill();
+        // Deck
+        ctx.fillStyle="#1a2a1a";ctx.fillRect(-5,0,10,6);
+        // Iranian flag stripe (green-white-red)
+        ctx.fillStyle="#239f40";ctx.fillRect(-6,-5,12,2);
+        ctx.fillStyle="#fff";ctx.fillRect(-6,-3,12,2);
+        ctx.fillStyle="#da0000";ctx.fillRect(-6,-1,12,2);
+        // Outboard motor wake
+        if(p.cooldown<=0){ctx.fillStyle="rgba(150,200,255,0.2)";ctx.beginPath();ctx.moveTo(-3,10);ctx.lineTo(0,10+8+Math.random()*3);ctx.lineTo(3,10);ctx.fill()}
+        ctx.restore();
+        // Proximity glow
+        if(d<60){ctx.globalAlpha=Math.max(0,(60-d)/60)*0.15;ctx.fillStyle="#e74c3c";
+          ctx.beginPath();ctx.arc(p.x,p.y,20,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+      });
+      // Draw ship wake particles
+      g.wakes.forEach(w=>{w.life-=0.025*dt;w.y+=0.3*dt;w.sz+=0.02*dt;
+        if(w.life>0){ctx.globalAlpha=w.life*0.2;ctx.fillStyle="#6ab0d4";ctx.beginPath();ctx.ellipse(w.x,w.y,w.sz,w.sz*0.5,0,0,Math.PI*2);ctx.fill()}
+      });
+      g.wakes=g.wakes.filter(w=>w.life>0);
+      ctx.globalAlpha=1;
+      // Draw player ship (detailed tanker)
+      ctx.save();ctx.translate(g.ship.x,g.ship.y);
+      // Ship shadow
+      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(3,4,hbW+2,hbH*0.4,0,0,Math.PI*2);ctx.fill();
+      // Hull
+      const hullGrad=ctx.createLinearGradient(-hbW,0,hbW,0);
+      hullGrad.addColorStop(0,s.color+"99");hullGrad.addColorStop(0.5,s.color);hullGrad.addColorStop(1,s.color+"99");
+      ctx.fillStyle=hullGrad;ctx.beginPath();
+      ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.9,hbW*0.8,-hbH*0.3,hbW,hbH*0.3);
+      ctx.bezierCurveTo(hbW*0.9,hbH*0.7,hbW*0.3,hbH,0,hbH);
+      ctx.bezierCurveTo(-hbW*0.3,hbH,-hbW*0.9,hbH*0.7,-hbW,hbH*0.3);
+      ctx.bezierCurveTo(-hbW*0.8,-hbH*0.3,-hbW*0.4,-hbH*0.9,0,-hbH);ctx.fill();
+      // Deck
+      ctx.fillStyle="rgba(60,30,20,0.7)";ctx.fillRect(-hbW*0.55,-hbH*0.3,hbW*1.1,hbH*0.55);
+      // Bridge
+      ctx.fillStyle="rgba(200,200,220,0.5)";ctx.fillRect(-hbW*0.2,hbH*0.1,hbW*0.4,hbH*0.25);
+      // Running lights
+      ctx.fillStyle=Math.sin(t*6)>0?"#0f0":"#0a0";ctx.fillRect(hbW-2,-hbH*0.5,3,3);
+      ctx.fillStyle=Math.sin(t*6)>0?"#f00":"#a00";ctx.fillRect(-hbW-1,-hbH*0.5,3,3);
+      ctx.restore();
+      // Escort ship
+      if(equip.includes("escort")){ctx.save();ctx.translate(g.ship.x+hbW+14,g.ship.y+8);
+        ctx.fillStyle="#4a8866";ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(5,4);ctx.lineTo(-5,4);ctx.closePath();ctx.fill();
+        ctx.fillStyle="#3a7755";ctx.fillRect(-3,0,6,3);ctx.restore()}
+      // Explosion + tracer particles
+      g.particles.forEach(p=>{
+        if(p.type==="tracer"){p.life-=0.06*dt;
+          if(p.life>0){ctx.globalAlpha=p.life;ctx.strokeStyle=p.c;ctx.lineWidth=p.sz;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x2,p.y2);ctx.stroke();
+            ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(p.x2,p.y2,2,0,Math.PI*2);ctx.fill()}
+        } else {p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=0.08*dt;p.life-=0.025*dt;
+          if(p.life>0){ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.sz*p.life,0,Math.PI*2);ctx.fill()}}
+      });
+      g.particles=g.particles.filter(p=>p.life>0);
+      ctx.globalAlpha=1;
+      // Hit flash overlay
+      if(g.flash>0){ctx.globalAlpha=g.flash*0.3;ctx.fillStyle="#e74c3c";ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;g.flash*=Math.pow(0.9,dt)}
+      // ── HUD ──
+      ctx.fillStyle="rgba(4,10,20,0.85)";ctx.fillRect(0,0,W,34);
+      ctx.strokeStyle="rgba(100,160,220,0.15)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,34);ctx.lineTo(W,34);ctx.stroke();
+      // Hull HP bar
+      const hpPct=Math.max(0,1-g.hits/3);
+      ctx.fillStyle="rgba(255,255,255,0.08)";ctx.fillRect(8,8,100,6);
+      ctx.fillStyle=hpPct>0.5?"#2ecc71":hpPct>0.25?"#f39c12":"#e74c3c";
+      ctx.fillRect(8,8,100*hpPct,6);
+      ctx.strokeStyle="rgba(255,255,255,0.12)";ctx.strokeRect(8,8,100,6);
+      ctx.fillStyle="#fff";ctx.font="bold 10px monospace";ctx.fillText("HULL",8,26);
+      // Hits counter
+      for(let i=0;i<3;i++){ctx.fillStyle=i<g.hits?"#e74c3c":"rgba(255,255,255,0.12)";
+        ctx.fillRect(50+i*14,18,10,8);ctx.strokeStyle="rgba(255,255,255,0.15)";ctx.strokeRect(50+i*14,18,10,8)}
+      // Boat count
+      ctx.fillStyle="#e74c3c";ctx.font="bold 11px monospace";
+      ctx.fillText("🇮🇷"+boatCount,120,14);
+      // Rounds counter
+      if(rounds>0){ctx.fillStyle=g.roundCharges>0?"#ff8844":"#444";ctx.font="bold 10px monospace";ctx.fillText("💥"+g.roundCharges+" SPC/tap",120,28)}
+      if(g.kills>0){ctx.fillStyle="#2ecc71";ctx.font="bold 10px monospace";ctx.fillText("KILLS:"+g.kills,210,14)}
+      // Timer
+      const timeLeft=Math.max(0,Math.ceil(TOTAL_S-g.elapsed));
+      ctx.fillStyle=timeLeft<=5?"#e74c3c":S.accent;ctx.font="bold 16px "+S.titleFont;
+      ctx.textAlign="right";ctx.fillText(timeLeft+"s",W-10,22);ctx.textAlign="left";
+      // Progress bar at bottom
+      const progPct=Math.min(1,g.elapsed/TOTAL_S);
+      ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fillRect(0,H-4,W,4);
+      ctx.fillStyle=S.accent;ctx.fillRect(0,H-4,W*progPct,4);
+      ctx.restore(); // end screen shake transform
+      // End conditions
+      if(g.hits>=3||g.elapsed>=TOTAL_S){g.active=false;
+        onComplete({success:g.hits<2,hullDmg:Math.round((g.hits===0?0:g.hits<2?10:30)*arm),
+          cargoLoss:(g.hits===0?0:g.hits<2?0.03:0.10)*arm,repairCost:g.hits*150000,
+          msg:g.hits===0?"Clean escape! Outran the IRGC boats.":g.hits<2?"Glancing hit — hull took minor damage.":"IRGC boats swarmed the vessel. Cargo seized."});return}
+      requestAnimationFrame(loop);
+    };requestAnimationFrame(loop);
+    return()=>{g.active=false;window.removeEventListener("keydown",kd);window.removeEventListener("keyup",ku);canvas.removeEventListener("touchstart",ts);canvas.removeEventListener("touchmove",ts);canvas.removeEventListener("touchend",te);canvas.removeEventListener("click",cc)};
+  },[]);
+  return <canvas ref={ref} style={{borderRadius:8,border:"1px solid rgba(100,160,220,0.15)"}}/>;
+}
+
+// ══════════ MISSILE DODGE (unique — homing missiles) ══════════
+function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
+  const ref=useRef(null);const s=SHIPS[shipKey]||SHIPS.suezmax;
+  useEffect(()=>{
+    const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
+    const spd=2.5+agility*0.3,arm=equip.includes("armor")?0.6:1;
+    const spdMult=equip.includes("jammer")?0.7:1;
+    const maxHits=2;
+    const hbW=s.hitboxW,hbH=s.hitboxH;
+    const TOTAL_S=15;
+    const g={ship:{x:W/2,y:H-70},missiles:[],active:true,keys:{},hits:0,particles:[],wakes:[],
+      startTime:performance.now(),elapsed:0,shk:0,flash:0,dodged:0,spawnTimer:0,wave:1,
+      warnings:[],flareCharges:flares,flareCooldown:0,roundCharges:rounds,roundCooldown:0,
+      crosshair:{x:W/2,y:H/2,active:false},kills:0};
+    // Wave 1: 3 missiles staggered
+    const spawnMissile=(delay,type)=>{
+      const types={normal:{spd:2.2,track:0.012,sz:1},fast:{spd:3.5,track:0.006,sz:0.8},heavy:{spd:1.6,track:0.02,sz:1.4},cluster:{spd:2.8,track:0.01,sz:0.7}};
+      const t=types[type]||types.normal;
+      g.missiles.push({x:30+Math.random()*(W-60),y:-40-delay*100,speed:(t.spd+Math.random()*0.8)*spdMult,
+        track:t.track*spdMult,active:true,type,sz:t.sz,angle:Math.PI/2,
+        trail:[],warned:false,born:performance.now()+delay*400});
+    };
+    // Spawn initial wave
+    for(let i=0;i<3;i++)spawnMissile(i,"normal");
+    const kd=e=>{g.keys[e.key]=true;
+      if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"].includes(e.key))e.preventDefault();
+      // F key = flares (area effect, deflect nearby missiles)
+      if(e.key==="f"&&g.flareCharges>0&&g.flareCooldown<=0){
+        g.flareCharges--;g.flareCooldown=40;
+        g.missiles.forEach(m=>{if(!m.active)return;const d=dst(g.ship.x,g.ship.y,m.x,m.y);
+          if(d<130){m.track=0;m.speed*=0.4;m.x+=(m.x-g.ship.x)*0.6;
+            for(let p=0;p<8;p++)g.particles.push({x:m.x+(Math.random()-0.5)*20,y:m.y+(Math.random()-0.5)*20,
+              vx:(Math.random()-0.5)*3,vy:-Math.random()*3-1,life:1,c:"#fff",sz:2+Math.random()*2,type:"flare"})}});
+        for(let p=0;p<15;p++)g.particles.push({x:g.ship.x+(Math.random()-0.5)*20,y:g.ship.y-10,
+          vx:(Math.random()-0.5)*6,vy:-Math.random()*6-3,life:1,c:["#fff","#ffee88","#ffdd44"][Math.floor(Math.random()*3)],sz:3+Math.random()*3,type:"flare"});
+      }
+      // SPACE key = fire round at nearest missile
+      if(e.key===" "&&g.roundCharges>0&&g.roundCooldown<=0){
+        g.roundCharges--;g.roundCooldown=15;
+        let nearest=null,nearDist=Infinity;
+        g.missiles.forEach(m=>{if(!m.active)return;const d=dst(g.ship.x,g.ship.y,m.x,m.y);if(d<nearDist){nearDist=d;nearest=m}});
+        if(nearest&&nearDist<250){
+          // Tracer line
+          g.particles.push({x:g.ship.x,y:g.ship.y-hbH,x2:nearest.x,y2:nearest.y,life:1,c:"#ffaa00",sz:2,type:"tracer"});
+          // Hit chance based on distance
+          const hitChance=nearDist<80?0.95:nearDist<150?0.7:0.45;
+          if(Math.random()<hitChance){
+            nearest.active=false;g.kills++;
+            for(let p=0;p<18;p++){const a=Math.random()*Math.PI*2,v=1+Math.random()*4;
+              g.particles.push({x:nearest.x,y:nearest.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,sz:2+Math.random()*4,
+                c:["#ff4444","#ff8800","#ffcc00","#fff"][Math.floor(Math.random()*4)],type:"fire"})}
+          } else {
+            // Miss — sparks near target
+            for(let p=0;p<5;p++)g.particles.push({x:nearest.x+(Math.random()-0.5)*30,y:nearest.y+(Math.random()-0.5)*30,
+              vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2,life:0.5,sz:1+Math.random()*2,c:"#ffaa44",type:"fire"});
+          }
+        } else {
+          // Fire into air — no target in range
+          g.particles.push({x:g.ship.x,y:g.ship.y-hbH,x2:g.ship.x+(Math.random()-0.5)*40,y2:g.ship.y-200,life:0.5,c:"#ffaa00",sz:1,type:"tracer"});
+        }
+      }
+    };
+    const ku=e=>{g.keys[e.key]=false};
+    // Click = fire round, double-click = deploy flare (mobile-friendly)
+    const fireRoundM=()=>{if(g.roundCharges<=0||g.roundCooldown>0)return;
+      g.roundCharges--;g.roundCooldown=15;
+      let nearest=null,nearDist=Infinity;
+      g.missiles.forEach(m=>{if(!m.active)return;const d=dst(g.ship.x,g.ship.y,m.x,m.y);if(d<nearDist){nearDist=d;nearest=m}});
+      if(nearest&&nearDist<250){
+        g.particles.push({x:g.ship.x,y:g.ship.y-hbH,x2:nearest.x,y2:nearest.y,life:1,c:"#ffaa00",sz:2,type:"tracer"});
+        const hitChance=nearDist<80?0.95:nearDist<150?0.7:0.45;
+        if(Math.random()<hitChance){nearest.active=false;g.kills++;
+          for(let p=0;p<18;p++){const a=Math.random()*Math.PI*2,v=1+Math.random()*4;
+            g.particles.push({x:nearest.x,y:nearest.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,sz:2+Math.random()*4,
+              c:["#ff4444","#ff8800","#ffcc00","#fff"][Math.floor(Math.random()*4)],type:"fire"})}}
+      }
+    };
+    const deployFlareM=()=>{if(g.flareCharges<=0||g.flareCooldown>0)return;
+      g.flareCharges--;g.flareCooldown=40;
+      g.missiles.forEach(m=>{if(!m.active)return;const d=dst(g.ship.x,g.ship.y,m.x,m.y);
+        if(d<130){m.track=0;m.speed*=0.4;m.x+=(m.x-g.ship.x)*0.6}});
+      for(let p=0;p<15;p++)g.particles.push({x:g.ship.x+(Math.random()-0.5)*20,y:g.ship.y-10,
+        vx:(Math.random()-0.5)*6,vy:-Math.random()*6-3,life:1,c:["#fff","#ffee88","#ffdd44"][Math.floor(Math.random()*3)],sz:3+Math.random()*3,type:"flare"});
+    };
+    const cc=e=>{e.preventDefault();fireRoundM()};
+    const dblcc=e=>{e.preventDefault();deployFlareM()};
+    canvas.addEventListener("click",cc);canvas.addEventListener("dblclick",dblcc);
+    window.addEventListener("keydown",kd);window.addEventListener("keyup",ku);
+    let tch=null;const ts=e=>{tch={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault()};const te=()=>{tch=null};
+    canvas.addEventListener("touchstart",ts,{passive:false});canvas.addEventListener("touchmove",ts,{passive:false});canvas.addEventListener("touchend",te);
+    let lastFrame=performance.now();
+    const loop=(now)=>{
+      if(!g.active)return;
+      const dt=Math.min((now-lastFrame)/16.67,3);lastFrame=now;
+      g.elapsed=(now-g.startTime)/1000;
+      const t=g.elapsed;
+      if(g.flareCooldown>0)g.flareCooldown-=dt;if(g.roundCooldown>0)g.roundCooldown-=dt;
+      // Spawn additional waves over time
+      g.spawnTimer+=dt;
+      if(g.spawnTimer>90&&g.wave===1){g.wave=2;spawnMissile(0,"fast");spawnMissile(0.5,"normal");g.spawnTimer=0}
+      if(g.spawnTimer>80&&g.wave===2){g.wave=3;spawnMissile(0,"heavy");spawnMissile(0.3,"fast");spawnMissile(0.6,"cluster");g.spawnTimer=0}
+      // Screen shake
+      const sx=g.shk>0.3?(Math.random()-0.5)*g.shk*8:0;
+      const sy=g.shk>0.3?(Math.random()-0.5)*g.shk*8:0;
+      if(g.shk>0)g.shk*=Math.pow(0.90,dt);
+      ctx.save();ctx.translate(sx,sy);
+      // Sky/horizon background — nighttime attack scene
+      const skyGrad=ctx.createLinearGradient(0,0,0,H);
+      skyGrad.addColorStop(0,"#020810");skyGrad.addColorStop(0.15,"#06111f");skyGrad.addColorStop(0.4,"#0a1e35");skyGrad.addColorStop(1,"#0d2a4a");
+      ctx.fillStyle=skyGrad;ctx.fillRect(0,0,W,H);
+      // Stars in upper portion
+      ctx.fillStyle="rgba(255,255,255,0.4)";
+      for(let i=0;i<15;i++){const sx2=((i*73+17)%W),sy2=((i*41+5)%(H*0.3));
+        const twinkle=0.3+Math.sin(t*2+i*1.7)*0.3;ctx.globalAlpha=twinkle;ctx.fillRect(sx2,sy2,1,1)}
+      ctx.globalAlpha=1;
+      // Animated ocean waves
+      ctx.globalAlpha=0.06;
+      for(let w=0;w<5;w++){ctx.strokeStyle="#1a6090";ctx.lineWidth=1;ctx.beginPath();
+        for(let x=0;x<W;x+=2){const y=H*0.6+w*50+Math.sin(x*0.012+t*0.6+w*2)*8;
+          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}
+      ctx.globalAlpha=1;
+      // Move ship (left/right + up/down)
+      if(g.keys["ArrowLeft"]||g.keys["a"])g.ship.x-=spd*dt;if(g.keys["ArrowRight"]||g.keys["d"])g.ship.x+=spd*dt;
+      if(g.keys["ArrowUp"]||g.keys["w"])g.ship.y-=spd*0.5*dt;if(g.keys["ArrowDown"]||g.keys["s"])g.ship.y+=spd*0.5*dt;
+      if(tch){const r=canvas.getBoundingClientRect();
+        g.ship.x+=((tch.x-r.left)/r.width*W-g.ship.x)*0.08*dt;
+        g.ship.y+=((tch.y-r.top)/r.height*H-g.ship.y)*0.05*dt}
+      g.ship.x=clamp(g.ship.x,hbW+4,W-hbW-4);g.ship.y=clamp(g.ship.y,H*0.3,H-30);
+      // Ship wake
+      if(Math.random()<0.35)g.wakes.push({x:g.ship.x+(Math.random()-0.5)*hbW,y:g.ship.y+hbH*0.7,life:1,sz:2+Math.random()*2});
+      // Update & draw missiles
+      g.missiles.forEach(m=>{
+        if(!m.active||now<m.born)return;
+        const dx=g.ship.x-m.x,dy=g.ship.y-m.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        // Homing toward player
+        const targetAngle=Math.atan2(dy,dx);
+        let angleDiff=targetAngle-m.angle;
+        while(angleDiff>Math.PI)angleDiff-=Math.PI*2;while(angleDiff<-Math.PI)angleDiff+=Math.PI*2;
+        m.angle+=angleDiff*m.track*60*dt;
+        m.x+=Math.cos(m.angle)*(m.speed+t*0.08)*dt;
+        m.y+=Math.sin(m.angle)*(m.speed+t*0.08)*dt;
+        // Trail
+        if(Math.random()<0.6)m.trail.push({x:m.x,y:m.y,life:1});
+        if(m.trail.length>18)m.trail.shift();
+        // Off-screen removal
+        if(m.y>H+30||m.x<-30||m.x>W+30){m.active=false;g.dodged++;return}
+        // Warning line when incoming
+        if(d<150&&d>40){
+          const warnA=Math.max(0,(150-d)/110)*0.4*(0.5+Math.sin(t*8)*0.5);
+          ctx.strokeStyle="rgba(255,60,30,"+warnA+")";ctx.lineWidth=1;ctx.setLineDash([3,5]);
+          ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(g.ship.x,g.ship.y);ctx.stroke();ctx.setLineDash([]);
+        }
+        // Collision
+        if(Math.abs(g.ship.x-m.x)<hbW+4*m.sz&&Math.abs(g.ship.y-m.y)<hbH+4*m.sz){
+          m.active=false;g.hits++;g.shk=1.2;g.flash=1;
+          // Big explosion
+          const expCount=m.type==="heavy"?35:22;
+          for(let p=0;p<expCount;p++){const a=Math.random()*Math.PI*2,v=1+Math.random()*5;
+            g.particles.push({x:m.x+(Math.random()-0.5)*10,y:m.y+(Math.random()-0.5)*10,
+              vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,sz:2+Math.random()*(m.type==="heavy"?6:4),
+              c:["#ff4444","#ff8800","#ffcc00","#fff","#ff2200"][Math.floor(Math.random()*5)],type:"fire"});
+          }
+          // Water splash
+          for(let p=0;p<8;p++)g.particles.push({x:m.x+(Math.random()-0.5)*20,y:m.y,
+            vx:(Math.random()-0.5)*3,vy:-Math.random()*4-1,life:1,sz:2+Math.random()*3,c:"#6ab0d4",type:"splash"});
+          return;
+        }
+        // Draw missile trail (exhaust smoke)
+        m.trail.forEach(tr=>{tr.life-=0.06*dt;
+          if(tr.life>0){ctx.globalAlpha=tr.life*0.4;
+            const tc=m.type==="fast"?"rgba(100,200,255,":"rgba(255,120,40,";
+            ctx.fillStyle=tc+tr.life*0.6+")";
+            ctx.beginPath();ctx.arc(tr.x,tr.y,2*m.sz*tr.life,0,Math.PI*2);ctx.fill()}
+        });
+        m.trail=m.trail.filter(tr=>tr.life>0);
+        ctx.globalAlpha=1;
+        // Draw missile body
+        ctx.save();ctx.translate(m.x,m.y);ctx.rotate(m.angle-Math.PI/2);
+        const mLen=12*m.sz,mWid=3.5*m.sz;
+        // Missile body
+        const mGrad=ctx.createLinearGradient(-mWid,0,mWid,0);
+        mGrad.addColorStop(0,"#666");mGrad.addColorStop(0.5,m.type==="heavy"?"#aa3333":m.type==="fast"?"#3366aa":"#888");mGrad.addColorStop(1,"#555");
+        ctx.fillStyle=mGrad;ctx.beginPath();
+        ctx.moveTo(0,-mLen);ctx.bezierCurveTo(mWid,-mLen*0.6,mWid,mLen*0.3,mWid*0.6,mLen*0.5);
+        ctx.lineTo(-mWid*0.6,mLen*0.5);ctx.bezierCurveTo(-mWid,mLen*0.3,-mWid,-mLen*0.6,0,-mLen);ctx.fill();
+        // Nose cone
+        ctx.fillStyle=m.type==="heavy"?"#cc4444":"#aaa";ctx.beginPath();ctx.moveTo(0,-mLen-3*m.sz);
+        ctx.lineTo(mWid*0.5,-mLen);ctx.lineTo(-mWid*0.5,-mLen);ctx.closePath();ctx.fill();
+        // Fins
+        ctx.fillStyle="#555";
+        ctx.beginPath();ctx.moveTo(-mWid,mLen*0.3);ctx.lineTo(-mWid-3*m.sz,mLen*0.6);ctx.lineTo(-mWid*0.5,mLen*0.5);ctx.fill();
+        ctx.beginPath();ctx.moveTo(mWid,mLen*0.3);ctx.lineTo(mWid+3*m.sz,mLen*0.6);ctx.lineTo(mWid*0.5,mLen*0.5);ctx.fill();
+        // Engine glow
+        const flicker=0.7+Math.random()*0.3;
+        const eGrad=ctx.createRadialGradient(0,mLen*0.5+2,0,0,mLen*0.5+2,6*m.sz);
+        eGrad.addColorStop(0,"rgba(255,200,80,"+flicker+")");eGrad.addColorStop(0.5,"rgba(255,100,20,"+flicker*0.6+")");eGrad.addColorStop(1,"rgba(255,50,0,0)");
+        ctx.fillStyle=eGrad;ctx.fillRect(-6*m.sz,mLen*0.3,12*m.sz,12*m.sz);
+        // Exhaust flame
+        ctx.fillStyle="rgba(255,180,50,"+flicker*0.8+")";ctx.beginPath();
+        ctx.moveTo(-2*m.sz,mLen*0.5);ctx.lineTo(0,mLen*0.5+8*m.sz+Math.random()*4*m.sz);ctx.lineTo(2*m.sz,mLen*0.5);ctx.fill();
+        ctx.restore();
+        // Incoming warning indicator at screen edge if missile is off-screen top
+        if(m.y<40){ctx.fillStyle="rgba(255,60,30,"+(0.5+Math.sin(t*10)*0.3)+")";
+          ctx.beginPath();ctx.moveTo(m.x,36);ctx.lineTo(m.x-6,28);ctx.lineTo(m.x+6,28);ctx.closePath();ctx.fill();
+          ctx.fillStyle="#ff4444";ctx.font="bold 9px monospace";ctx.textAlign="center";ctx.fillText("⚠",m.x,25);ctx.textAlign="left"}
+      });
+      // Draw wakes
+      g.wakes.forEach(w=>{w.life-=0.025*dt;w.y+=0.3*dt;w.sz+=0.02*dt;
+        if(w.life>0){ctx.globalAlpha=w.life*0.2;ctx.fillStyle="#6ab0d4";ctx.beginPath();ctx.ellipse(w.x,w.y,w.sz,w.sz*0.5,0,0,Math.PI*2);ctx.fill()}});
+      g.wakes=g.wakes.filter(w=>w.life>0);
+      ctx.globalAlpha=1;
+      // Draw player ship
+      ctx.save();ctx.translate(g.ship.x,g.ship.y);
+      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(3,4,hbW+2,hbH*0.4,0,0,Math.PI*2);ctx.fill();
+      const hullGrad=ctx.createLinearGradient(-hbW,0,hbW,0);
+      hullGrad.addColorStop(0,s.color+"99");hullGrad.addColorStop(0.5,s.color);hullGrad.addColorStop(1,s.color+"99");
+      ctx.fillStyle=hullGrad;ctx.beginPath();
+      ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.9,hbW*0.8,-hbH*0.3,hbW,hbH*0.3);
+      ctx.bezierCurveTo(hbW*0.9,hbH*0.7,hbW*0.3,hbH,0,hbH);
+      ctx.bezierCurveTo(-hbW*0.3,hbH,-hbW*0.9,hbH*0.7,-hbW,hbH*0.3);
+      ctx.bezierCurveTo(-hbW*0.8,-hbH*0.3,-hbW*0.4,-hbH*0.9,0,-hbH);ctx.fill();
+      ctx.fillStyle="rgba(60,30,20,0.7)";ctx.fillRect(-hbW*0.55,-hbH*0.3,hbW*1.1,hbH*0.55);
+      ctx.fillStyle="rgba(200,200,220,0.5)";ctx.fillRect(-hbW*0.2,hbH*0.1,hbW*0.4,hbH*0.25);
+      ctx.fillStyle=Math.sin(t*6)>0?"#0f0":"#0a0";ctx.fillRect(hbW-2,-hbH*0.5,3,3);
+      ctx.fillStyle=Math.sin(t*6)>0?"#f00":"#a00";ctx.fillRect(-hbW-1,-hbH*0.5,3,3);
+      ctx.restore();
+      // Particles (fire + splash + flare + tracer)
+      g.particles.forEach(p=>{
+        if(p.type==="tracer"){p.life-=0.06*dt;
+          if(p.life>0){ctx.globalAlpha=p.life;ctx.strokeStyle=p.c;ctx.lineWidth=p.sz;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x2,p.y2);ctx.stroke();
+            ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(p.x2,p.y2,2,0,Math.PI*2);ctx.fill()}
+        } else {p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=0.025*dt;
+          if(p.type==="splash"||p.type==="flare")p.vy+=0.12*dt;
+          if(p.type==="fire")p.vy-=0.03*dt;
+          if(p.life>0){ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.sz*p.life,0,Math.PI*2);ctx.fill()}}
+      });
+      g.particles=g.particles.filter(p=>p.life>0);
+      ctx.globalAlpha=1;
+      // Flash overlay
+      if(g.flash>0){ctx.globalAlpha=g.flash*0.35;ctx.fillStyle="#ff3300";ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;g.flash*=Math.pow(0.88,dt)}
+      // ── HUD ──
+      ctx.fillStyle="rgba(4,10,20,0.88)";ctx.fillRect(0,0,W,38);
+      ctx.strokeStyle="rgba(255,60,30,0.12)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,38);ctx.lineTo(W,38);ctx.stroke();
+      // Hull HP bar
+      const hpPct=Math.max(0,1-g.hits/maxHits);
+      ctx.fillStyle="rgba(255,255,255,0.08)";ctx.fillRect(8,6,90,6);
+      ctx.fillStyle=hpPct>0.5?"#2ecc71":hpPct>0.25?"#f39c12":"#e74c3c";
+      ctx.fillRect(8,6,90*hpPct,6);ctx.strokeStyle="rgba(255,255,255,0.12)";ctx.strokeRect(8,6,90,6);
+      // Hit markers
+      ctx.fillStyle="#fff";ctx.font="bold 9px monospace";ctx.fillText("HULL",8,26);
+      for(let i=0;i<maxHits;i++){ctx.fillStyle=i<g.hits?"#e74c3c":"rgba(255,255,255,0.12)";
+        ctx.fillRect(42+i*14,18,10,8);ctx.strokeStyle="rgba(255,255,255,0.15)";ctx.strokeRect(42+i*14,18,10,8)}
+      // Active missiles count
+      const activeMissiles=g.missiles.filter(m=>m.active).length;
+      ctx.fillStyle="#ff6644";ctx.font="bold 11px monospace";ctx.fillText("🚀"+activeMissiles,110,14);
+      // Consumable counters
+      let conX=110;
+      if(flares>0){ctx.fillStyle=g.flareCharges>0?"#ffdd44":"#444";ctx.font="bold 10px monospace";
+        ctx.fillText("🎆"+g.flareCharges+" F/2×tap",conX,28);conX+=80}
+      if(rounds>0){ctx.fillStyle=g.roundCharges>0?"#ff8844":"#444";ctx.font="bold 10px monospace";
+        ctx.fillText("💥"+g.roundCharges+" SPC/tap",conX,28)}
+      if(g.kills>0){ctx.fillStyle="#2ecc71";ctx.font="bold 10px monospace";ctx.fillText("KILLS:"+g.kills,conX+(rounds>0?70:0),28)}
+      // Timer
+      const timeLeft=Math.max(0,Math.ceil(TOTAL_S-t));
+      ctx.fillStyle=timeLeft<=4?"#e74c3c":S.accent;ctx.font="bold 16px "+S.titleFont;
+      ctx.textAlign="right";ctx.fillText(timeLeft+"s",W-10,24);ctx.textAlign="left";
+      // Dodged counter
+      if(g.dodged>0){ctx.fillStyle="#2ecc71";ctx.font="bold 10px monospace";ctx.fillText("DODGED:"+g.dodged,W-85,36)}
+      // Progress bar at bottom
+      const progPct=Math.min(1,t/TOTAL_S);
+      ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fillRect(0,H-4,W,4);
+      const progGrad=ctx.createLinearGradient(0,0,W*progPct,0);
+      progGrad.addColorStop(0,"#e74c3c");progGrad.addColorStop(1,"#ff8800");
+      ctx.fillStyle=progGrad;ctx.fillRect(0,H-4,W*progPct,4);
+      ctx.restore(); // end shake
+      // End conditions
+      if(g.hits>=maxHits||g.missiles.every(m=>!m.active&&now>=m.born)||t>=TOTAL_S){g.active=false;
+        onComplete({success:g.hits<Math.ceil(maxHits/2),hullDmg:Math.round((g.hits===0?0:g.hits*15)*arm),
+          cargoLoss:(g.hits===0?0:g.hits===1?0.06:0.15)*arm,repairCost:g.hits*200000,
+          msg:g.hits===0?"All missiles evaded! Clean escape.":g.hits<maxHits?"Glancing impact — minor hull damage.":"Direct hit! Critical damage sustained."});return}
+      requestAnimationFrame(loop);
+    };requestAnimationFrame(loop);
+    return()=>{g.active=false;window.removeEventListener("keydown",kd);window.removeEventListener("keyup",ku);canvas.removeEventListener("touchstart",ts);canvas.removeEventListener("touchmove",ts);canvas.removeEventListener("touchend",te);canvas.removeEventListener("click",cc);canvas.removeEventListener("dblclick",dblcc)};
+  },[]);
+  return <canvas ref={ref} style={{borderRadius:8,border:"1px solid rgba(255,60,30,0.15)"}}/>;
+}
+
+// ══════════ SHAMAL / SANDSTORM (unique — fog navigation) ══════════
+function SandstormGame({onComplete,agility,equip,shipKey}){
+  const ref=useRef(null);const s=SHIPS[shipKey]||SHIPS.suezmax;
+  useEffect(()=>{
+    const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
+    const spd=1.5+agility*0.25,visMult=equip.includes("radar")?1.5:1,arm=equip.includes("armor")?0.6:1;
+    const hbW=s.hitboxW,hbH=s.hitboxH;
+    const TOTAL_S=25;
+    // Visibility radius — how far you can see from the ship
+    const VIS_R=75*visMult; // ~75px base, ~112 with radar
+    const g={ship:{x:W/2,y:H-70},target:{x:W*0.3+Math.random()*W*0.4,y:40+Math.random()*20},
+      obstacles:[],active:true,keys:{},hits:0,iFrames:0,startTime:performance.now(),elapsed:0,
+      shk:0,flash:0,particles:[],sandParticles:[],distToExit:999};
+    // Generate obstacles — rocky shoals and debris
+    const obstTypes=["rock","wreck","buoy"];
+    for(let i=0;i<10;i++){
+      const ox=25+Math.random()*(W-50),oy=60+Math.random()*340;
+      if(dst(ox,oy,g.ship.x,g.ship.y)<80||dst(ox,oy,g.target.x,g.target.y)<60)continue;
+      g.obstacles.push({x:ox,y:oy,r:16+Math.random()*20,type:obstTypes[i%3],angle:Math.random()*Math.PI*2});
+    }
+    // Pre-generate sand particles for the whole field
+    for(let i=0;i<150;i++)g.sandParticles.push({x:Math.random()*W,y:Math.random()*H,
+      vx:2+Math.random()*3,vy:0.3+Math.random()*1.2,sz:1+Math.random()*2.5,alpha:0.15+Math.random()*0.3});
+    const kd=e=>{g.keys[e.key]=true;if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","a","d","w","s"].includes(e.key))e.preventDefault()};
+    const ku=e=>{g.keys[e.key]=false};
+    window.addEventListener("keydown",kd);window.addEventListener("keyup",ku);
+    let tch=null;const ts=e=>{tch={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault()};const te=()=>tch=null;
+    canvas.addEventListener("touchstart",ts,{passive:false});canvas.addEventListener("touchmove",ts,{passive:false});canvas.addEventListener("touchend",te);
+    let lastFrame=performance.now();
+    const loop=(now)=>{
+      if(!g.active)return;
+      const dt=Math.min((now-lastFrame)/16.67,3);lastFrame=now;
+      g.elapsed=(now-g.startTime)/1000;
+      const t=g.elapsed;
+      if(g.iFrames>0)g.iFrames-=dt;
+      // Screen shake
+      const sx=g.shk>0.3?(Math.random()-0.5)*g.shk*5:0;
+      const sy=g.shk>0.3?(Math.random()-0.5)*g.shk*5:0;
+      if(g.shk>0)g.shk*=Math.pow(0.92,dt);
+      ctx.save();ctx.translate(sx,sy);
+      // Base — murky brownish-teal ocean under dust
+      const bgGrad=ctx.createLinearGradient(0,0,0,H);
+      bgGrad.addColorStop(0,"#1c1810");bgGrad.addColorStop(0.5,"#1a1a12");bgGrad.addColorStop(1,"#181610");
+      ctx.fillStyle=bgGrad;ctx.fillRect(0,0,W,H);
+      // Water swirls (drawn everywhere, fog will hide distant ones)
+      ctx.globalAlpha=0.08;
+      for(let w=0;w<8;w++){ctx.strokeStyle=w%2===0?"#4a3a18":"#3a2a10";ctx.lineWidth=1.5;ctx.beginPath();
+        for(let x=0;x<W;x+=3){const y=w*65+20+Math.sin(x*0.02+t*0.5+w*2)*10+Math.sin(x*0.05+t*1.5)*5;
+          x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}
+      ctx.globalAlpha=1;
+      // Move ship
+      if(g.keys["ArrowLeft"]||g.keys["a"])g.ship.x-=spd*dt;if(g.keys["ArrowRight"]||g.keys["d"])g.ship.x+=spd*dt;
+      if(g.keys["ArrowUp"]||g.keys["w"])g.ship.y-=spd*dt;if(g.keys["ArrowDown"]||g.keys["s"])g.ship.y+=spd*dt;
+      if(tch){const r=canvas.getBoundingClientRect();g.ship.x+=((tch.x-r.left)/r.width*W-g.ship.x)*0.05*dt;g.ship.y+=((tch.y-r.top)/r.height*H-g.ship.y)*0.05*dt}
+      g.ship.x=clamp(g.ship.x,12,W-12);g.ship.y=clamp(g.ship.y,42,H-12);
+      g.distToExit=dst(g.ship.x,g.ship.y,g.target.x,g.target.y);
+      // ── Draw obstacles ──
+      g.obstacles.forEach(o=>{
+        const d=dst(g.ship.x,g.ship.y,o.x,o.y);
+        const vis=clamp(1-d/(VIS_R*1.3),0,1); // visible within ~1.3x vis radius
+        if(vis<0.02)return;
+        // Collision
+        const cdx=Math.abs(g.ship.x-o.x),cdy=Math.abs(g.ship.y-o.y);
+        if(cdx<o.r+hbW&&cdy<o.r+hbH&&g.iFrames<=0){
+          g.hits++;g.iFrames=35;g.shk=0.8;g.flash=1;
+          const pushA=Math.atan2(g.ship.y-o.y,g.ship.x-o.x);
+          g.ship.x+=Math.cos(pushA)*25;g.ship.y+=Math.sin(pushA)*25;
+          g.ship.x=clamp(g.ship.x,12,W-12);g.ship.y=clamp(g.ship.y,42,H-12);
+          for(let p=0;p<12;p++)g.particles.push({x:o.x+(Math.random()-0.5)*o.r,y:o.y+(Math.random()-0.5)*o.r,
+            vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:1,sz:2+Math.random()*3,
+            c:["#c0a060","#ff8844","#ffcc66","#fff"][Math.floor(Math.random()*4)]});
+        }
+        ctx.globalAlpha=vis;
+        if(o.type==="rock"){
+          // Rocky shoal — visible brown mass with highlight
+          ctx.fillStyle="#6a5530";ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle="#4a3a1a";ctx.beginPath();ctx.arc(o.x+2,o.y+2,o.r*0.85,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle="rgba(200,170,100,"+vis*0.4+")";ctx.beginPath();ctx.arc(o.x-o.r*0.25,o.y-o.r*0.25,o.r*0.35,0,Math.PI*2);ctx.fill();
+          // Outline
+          ctx.strokeStyle="rgba(100,80,40,"+vis*0.5+")";ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.stroke();
+        } else if(o.type==="wreck"){
+          // Shipwreck debris — dark broken hull
+          ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.angle);
+          ctx.fillStyle="#5a4020";ctx.fillRect(-o.r*0.9,-o.r*0.35,o.r*1.8,o.r*0.7);
+          ctx.fillStyle="#3a2510";ctx.fillRect(-o.r*0.2,-o.r*0.8,o.r*0.2,o.r*0.8); // mast
+          ctx.fillStyle="#4a3015";ctx.fillRect(o.r*0.3,-o.r*0.5,o.r*0.15,o.r*0.5);
+          ctx.strokeStyle="rgba(100,80,40,"+vis*0.5+")";ctx.strokeRect(-o.r*0.9,-o.r*0.35,o.r*1.8,o.r*0.7);
+          ctx.restore();
+        } else {
+          // Buoy — blinking red warning marker
+          const blinkOn=Math.sin(t*5+o.x)>0;
+          ctx.fillStyle=blinkOn?"rgba(255,50,20,"+vis*0.9+")":"rgba(180,30,10,"+vis*0.4+")";
+          ctx.beginPath();ctx.arc(o.x,o.y,6,0,Math.PI*2);ctx.fill();
+          if(blinkOn){const bGlow=ctx.createRadialGradient(o.x,o.y,0,o.x,o.y,18);
+            bGlow.addColorStop(0,"rgba(255,50,20,"+vis*0.25+")");bGlow.addColorStop(1,"rgba(255,50,20,0)");
+            ctx.fillStyle=bGlow;ctx.beginPath();ctx.arc(o.x,o.y,18,0,Math.PI*2);ctx.fill()}
+          // Pole
+          ctx.fillStyle="rgba(100,100,100,"+vis*0.6+")";ctx.fillRect(o.x-1,o.y,2,10);
+        }
+        // Danger proximity ring when very close
+        if(d<o.r+hbW+25&&d>o.r+2){
+          const ringA=clamp((o.r+hbW+25-d)/25,0,0.5)*vis;
+          ctx.strokeStyle="rgba(255,80,30,"+ringA+")";ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+          ctx.beginPath();ctx.arc(o.x,o.y,o.r+5,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+        ctx.globalAlpha=1;
+      });
+      // ── Exit beacon ──
+      const bv=clamp(1-g.distToExit/(VIS_R*2),0,1);
+      if(bv>0.01){
+        const beaconPulse=0.5+Math.sin(t*3)*0.3;
+        // Outer glow ring
+        const bGrad=ctx.createRadialGradient(g.target.x,g.target.y,2,g.target.x,g.target.y,30);
+        bGrad.addColorStop(0,"rgba(46,204,113,"+bv*beaconPulse+")");bGrad.addColorStop(1,"rgba(46,204,113,0)");
+        ctx.fillStyle=bGrad;ctx.beginPath();ctx.arc(g.target.x,g.target.y,30,0,Math.PI*2);ctx.fill();
+        // Inner beacon dot
+        ctx.fillStyle="rgba(46,204,113,"+bv*0.9+")";ctx.beginPath();ctx.arc(g.target.x,g.target.y,7+Math.sin(t*4)*2,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle="rgba(255,255,255,"+bv*0.7+")";ctx.beginPath();ctx.arc(g.target.x,g.target.y,3,0,Math.PI*2);ctx.fill();
+        // EXIT label
+        ctx.fillStyle="rgba(46,204,113,"+bv+")";ctx.font="bold 11px monospace";ctx.textAlign="center";ctx.fillText("EXIT",g.target.x,g.target.y-14);ctx.textAlign="left";
+        // Expanding sonar rings
+        for(let r=0;r<2;r++){const phase=((t*1.5+r)%2);const ringAlpha=bv*Math.max(0,1-phase)*0.35;
+          ctx.strokeStyle="rgba(46,204,113,"+ringAlpha+")";ctx.lineWidth=1.5;
+          ctx.beginPath();ctx.arc(g.target.x,g.target.y,8+phase*25,0,Math.PI*2);ctx.stroke()}
+      }
+      // ── Draw ship (blinks during iframes) ──
+      if(g.iFrames<=0||Math.floor(t*8)%2===0){
+        ctx.save();ctx.translate(g.ship.x,g.ship.y);
+        ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(2,3,hbW+2,hbH*0.4,0,0,Math.PI*2);ctx.fill();
+        const hGrad=ctx.createLinearGradient(-hbW,0,hbW,0);
+        hGrad.addColorStop(0,s.color+"99");hGrad.addColorStop(0.5,s.color);hGrad.addColorStop(1,s.color+"99");
+        ctx.fillStyle=hGrad;ctx.beginPath();
+        ctx.moveTo(0,-hbH);ctx.bezierCurveTo(hbW*0.4,-hbH*0.9,hbW*0.8,-hbH*0.3,hbW,hbH*0.3);
+        ctx.bezierCurveTo(hbW*0.9,hbH*0.7,hbW*0.3,hbH,0,hbH);
+        ctx.bezierCurveTo(-hbW*0.3,hbH,-hbW*0.9,hbH*0.7,-hbW,hbH*0.3);
+        ctx.bezierCurveTo(-hbW*0.8,-hbH*0.3,-hbW*0.4,-hbH*0.9,0,-hbH);ctx.fill();
+        ctx.fillStyle="rgba(80,40,25,0.7)";ctx.fillRect(-hbW*0.5,-hbH*0.2,hbW,hbH*0.4);
+        ctx.fillStyle="rgba(200,200,220,0.5)";ctx.fillRect(-hbW*0.18,hbH*0.1,hbW*0.36,hbH*0.2);
+        // Navigation lights
+        ctx.fillStyle=Math.sin(t*6)>0?"#0f0":"#060";ctx.fillRect(hbW-2,-hbH*0.5,3,3);
+        ctx.fillStyle=Math.sin(t*6)>0?"#f00":"#600";ctx.fillRect(-hbW-1,-hbH*0.5,3,3);
+        // Radar sweep if equipped
+        if(equip.includes("radar")){
+          ctx.strokeStyle="rgba(46,204,113,0.25)";ctx.lineWidth=1.5;
+          const rAngle=t*2.5;
+          ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(rAngle)*VIS_R*0.6,Math.sin(rAngle)*VIS_R*0.6);ctx.stroke();
+          ctx.strokeStyle="rgba(46,204,113,0.08)";ctx.beginPath();ctx.arc(0,0,VIS_R*0.6,rAngle-0.3,rAngle);ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // ── FOG LAYER — sandstorm obscuring everything outside visibility ──
+      // Use a radial gradient fog overlay centered on ship
+      const fogGrad=ctx.createRadialGradient(g.ship.x,g.ship.y,VIS_R*0.5,g.ship.x,g.ship.y,VIS_R*1.8);
+      fogGrad.addColorStop(0,"rgba(30,25,12,0)");      // clear near ship
+      fogGrad.addColorStop(0.35,"rgba(30,25,12,0.15)"); // slight haze
+      fogGrad.addColorStop(0.6,"rgba(30,25,12,0.55)");  // getting thick
+      fogGrad.addColorStop(0.8,"rgba(30,25,12,0.82)");  // mostly obscured
+      fogGrad.addColorStop(1,"rgba(30,25,12,0.94)");    // near-opaque at edges
+      ctx.fillStyle=fogGrad;ctx.fillRect(0,0,W,H);
+      // Second fog layer — fill corners/edges that the gradient doesn't reach
+      const edgeFog=ctx.createRadialGradient(g.ship.x,g.ship.y,VIS_R*1.5,g.ship.x,g.ship.y,VIS_R*3);
+      edgeFog.addColorStop(0,"rgba(26,21,10,0)");edgeFog.addColorStop(1,"rgba(26,21,10,0.6)");
+      ctx.fillStyle=edgeFog;ctx.fillRect(0,0,W,H);
+      // ── Collision spark particles (drawn on top of fog) ──
+      g.particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=0.03*dt;
+        if(p.life>0){ctx.globalAlpha=p.life;ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.sz*p.life,0,Math.PI*2);ctx.fill()}});
+      g.particles=g.particles.filter(p=>p.life>0);
+      ctx.globalAlpha=1;
+      // ── Blowing sand particles (foreground) ──
+      g.sandParticles.forEach(sp=>{
+        sp.x+=sp.vx*dt;sp.y+=sp.vy*dt;
+        if(sp.x>W+5)sp.x=-5;if(sp.y>H+5){sp.y=-5;sp.x=Math.random()*W}
+        const d=dst(sp.x,sp.y,g.ship.x,g.ship.y);
+        if(d<VIS_R*2){
+          const pAlpha=sp.alpha*clamp(1-d/(VIS_R*2),0,0.7);
+          ctx.globalAlpha=pAlpha;ctx.fillStyle="#c0a060";ctx.fillRect(sp.x,sp.y,sp.sz,sp.sz*0.4);
+        }
+      });
+      ctx.globalAlpha=1;
+      // Flash on hit
+      if(g.flash>0){ctx.globalAlpha=g.flash*0.3;ctx.fillStyle="#c08030";ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;g.flash*=Math.pow(0.9,dt)}
+      // ── HUD ──
+      ctx.fillStyle="rgba(20,16,8,0.92)";ctx.fillRect(0,0,W,38);
+      ctx.strokeStyle="rgba(180,150,80,0.2)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,38);ctx.lineTo(W,38);ctx.stroke();
+      ctx.fillStyle="#c0a060";ctx.font="bold 11px monospace";ctx.fillText("🌪️ SHAMAL",8,14);
+      ctx.fillStyle=g.hits>=3?"#e74c3c":g.hits>0?"#f39c12":"#2ecc71";ctx.font="bold 10px monospace";
+      ctx.fillText("Hits: "+g.hits+"/5",8,28);
+      // Distance-to-exit bar
+      const startDist=dst(W/2,H-70,g.target.x,g.target.y);
+      const distPct=clamp(1-g.distToExit/startDist,0,1);
+      ctx.fillStyle="rgba(255,255,255,0.08)";ctx.fillRect(120,8,100,6);
+      ctx.fillStyle=S.green;ctx.fillRect(120,8,100*distPct,6);
+      ctx.strokeStyle="rgba(255,255,255,0.12)";ctx.strokeRect(120,8,100,6);
+      ctx.fillStyle="#aaa";ctx.font="9px monospace";ctx.fillText("EXIT "+Math.round(distPct*100)+"%",120,28);
+      // Compass
+      const ang=Math.atan2(g.target.y-g.ship.y,g.target.x-g.ship.x);
+      ctx.save();ctx.translate(260,20);ctx.rotate(ang);
+      ctx.fillStyle=S.green;ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-5,-6);ctx.lineTo(-3,0);ctx.lineTo(-5,6);ctx.closePath();ctx.fill();
+      ctx.restore();
+      if(equip.includes("radar")){ctx.fillStyle=S.green;ctx.font="bold 9px monospace";ctx.fillText("📡",280,14)}
+      // Timer
+      const timeLeft=Math.max(0,Math.ceil(TOTAL_S-t));
+      ctx.fillStyle=timeLeft<=5?"#e74c3c":"#c0a060";ctx.font="bold 16px "+S.titleFont;
+      ctx.textAlign="right";ctx.fillText(timeLeft+"s",W-10,24);ctx.textAlign="left";
+      // Progress bar
+      ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fillRect(0,H-4,W,4);
+      ctx.fillStyle="#c0a060";ctx.fillRect(0,H-4,W*clamp(t/TOTAL_S,0,1),4);
+      ctx.restore();
+      // Win/lose
+      if(g.distToExit<22){g.active=false;onComplete({success:true,hullDmg:g.hits*5,cargoLoss:g.hits*0.03*arm,repairCost:g.hits*100000,
+        msg:"Navigated through the shamal!"+(g.hits>0?" "+g.hits+" collision"+(g.hits>1?"s":"")+".":"  No damage!")});return}
+      if(t>=TOTAL_S||g.hits>=5){g.active=false;onComplete({success:false,hullDmg:20+g.hits*5,cargoLoss:(0.08+g.hits*0.02)*arm,repairCost:500000,
+        msg:g.hits>=5?"Hull breach! Too many collisions.":"Lost in the shamal. Towed to safety."});return}
+      requestAnimationFrame(loop);
+    };requestAnimationFrame(loop);
+    return()=>{g.active=false;window.removeEventListener("keydown",kd);window.removeEventListener("keyup",ku);canvas.removeEventListener("touchstart",ts);canvas.removeEventListener("touchmove",ts);canvas.removeEventListener("touchend",te)};
+  },[]);
+  return <canvas ref={ref} style={{borderRadius:8,border:"1px solid rgba(180,150,80,0.2)"}}/>;
+}
+
+// ══════════ DRONE TAP ══════════
+function DroneTapGame({onComplete,equip,rounds=0}){
+  const ref=useRef(null);
+  useEffect(()=>{
+    const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
+    const hasCIWS=equip.includes("ciws"),hasJ=equip.includes("jammer"),arm=equip.includes("armor")?0.6:1;
+    const totalDrones=Math.round(12+Math.random()*7); // 12-18, median ~15
+    const jamCount=hasJ?Math.min(3,totalDrones):0;
+    const GAME_TIME=16; // seconds
+    const SHIP={x:W/2,y:H-50};
+    const g={drones:[],particles:[],active:true,kills:0,hits:0,spawned:0,
+      ammo:rounds,ammoCooldown:0,ciwsCooldown:0,ciwsTarget:null,
+      startTime:performance.now(),elapsed:0,shk:0,flash:0,
+      spawnQueue:[],jamRemain:jamCount};
+    // Build spawn schedule — drones arrive in waves over time
+    for(let i=0;i<totalDrones;i++){
+      const t=0.5+(i/totalDrones)*GAME_TIME*0.65+Math.random()*2; // spread across first ~70% of game
+      g.spawnQueue.push(t);
+    }
+    g.spawnQueue.sort((a,b)=>a-b);
+    const spawnDrone=()=>{
+      const id=g.spawned++;
+      const loiterTime=3+Math.random()*5; // 3-8s before diving
+      const x=30+Math.random()*(W-60),y=50+Math.random()*80;
+      const orbitR=20+Math.random()*30,orbitSpd=0.5+Math.random()*1.5,orbitPhase=Math.random()*Math.PI*2;
+      g.drones.push({id,x,y,baseX:x,baseY:y,orbitR,orbitSpd,orbitPhase,
+        alive:true,state:"loiter",loiterTimer:loiterTime,loiterMax:loiterTime,
+        diveSpeed:0,angle:0,trail:[],flashT:0});
+    };
+    // Click/tap to fire at nearest loitering or diving drone
+    const cc=e=>{
+      if(!g.active||g.ammo<=0||g.ammoCooldown>0)return;
+      e.preventDefault();
+      const rect=canvas.getBoundingClientRect();
+      const mx=(e.clientX-rect.left)/rect.width*W;
+      const my=(e.clientY-rect.top)/rect.height*H;
+      // Find closest alive drone to click point
+      let nearest=null,nearDist=Infinity;
+      g.drones.forEach(d=>{if(!d.alive)return;
+        const dd=Math.sqrt((d.x-mx)**2+(d.y-my)**2);
+        if(dd<nearDist){nearDist=dd;nearest=d}});
+      if(nearest&&nearDist<60){
+        g.ammo--;g.ammoCooldown=8;
+        // Tracer from ship to drone
+        g.particles.push({x:SHIP.x,y:SHIP.y-15,x2:nearest.x,y2:nearest.y,life:1,c:"#ffaa00",sz:2,type:"tracer"});
+        killDrone(nearest,"player");
+      } else if(nearest){
+        // Miss — tracer to click point
+        g.ammo--;g.ammoCooldown=8;
+        g.particles.push({x:SHIP.x,y:SHIP.y-15,x2:mx,y2:my,life:0.4,c:"#ffaa00",sz:1,type:"tracer"});
+      }
+    };
+    const killDrone=(d,source)=>{
+      d.alive=false;d.state="dead";g.kills++;
+      for(let j=0;j<12;j++){const a=Math.random()*Math.PI*2,v=1+Math.random()*3;
+        g.particles.push({x:d.x,y:d.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,
+          sz:2+Math.random()*3,c:["#ff4444","#ff8800","#ffcc00"][Math.floor(Math.random()*3)],type:"fire"})}
+      if(source==="ciws"){
+        // CIWS tracer burst
+        for(let t=0;t<3;t++){g.particles.push({x:SHIP.x+(Math.random()-0.5)*20,y:SHIP.y-20,
+          x2:d.x+(Math.random()-0.5)*8,y2:d.y+(Math.random()-0.5)*8,life:0.6,c:"#44ff44",sz:1.5,type:"tracer"})}}
+    };
+    canvas.addEventListener("click",cc);
+    let lastFrame=performance.now();
+    const loop=(now)=>{
+      if(!g.active)return;
+      const rawDt=(now-lastFrame)/16.67;lastFrame=now;const dt=Math.min(rawDt,3);
+      g.elapsed=(now-g.startTime)/1000;
+      if(g.ammoCooldown>0)g.ammoCooldown-=dt;
+      if(g.ciwsCooldown>0)g.ciwsCooldown-=dt;
+      // Spawn drones from queue (stop spawning after timer expires)
+      while(g.spawnQueue.length>0&&g.elapsed>=g.spawnQueue[0]){
+        if(g.elapsed>=GAME_TIME){g.spawnQueue.length=0;break}
+        g.spawnQueue.shift();
+        spawnDrone();
+        // Jammer auto-kills early spawns
+        if(g.jamRemain>0){const last=g.drones[g.drones.length-1];
+          g.jamRemain--;killDrone(last,"jammer");
+          g.particles.push({x:last.x,y:last.y,vx:0,vy:0,life:1.5,sz:30,c:"#4488ff",type:"jam"})}
+      }
+      // CIWS auto-fire — targets diving drones, 1 kill per 2 seconds
+      if(hasCIWS&&g.ciwsCooldown<=0){
+        const diving=g.drones.filter(d=>d.alive&&d.state==="diving");
+        if(diving.length>0){
+          // Target the one closest to ship (most dangerous)
+          diving.sort((a,b)=>{const da=Math.sqrt((a.x-SHIP.x)**2+(a.y-SHIP.y)**2);
+            const db=Math.sqrt((b.x-SHIP.x)**2+(b.y-SHIP.y)**2);return da-db});
+          killDrone(diving[0],"ciws");g.ciwsCooldown=30; // ~2s at 60fps (30 frames * 16.67ms)
+        }
+      }
+      // Update drones
+      g.drones.forEach(d=>{
+        if(!d.alive)return;
+        if(d.state==="loiter"){
+          d.loiterTimer-=dt/60;
+          // Orbit pattern
+          d.orbitPhase+=d.orbitSpd*0.02*dt;
+          d.x=d.baseX+Math.cos(d.orbitPhase)*d.orbitR;
+          d.y=d.baseY+Math.sin(d.orbitPhase*0.7)*d.orbitR*0.4;
+          d.x=clamp(d.x,15,W-15);d.y=clamp(d.y,42,H*0.45);
+          // Transition to dive
+          if(d.loiterTimer<=0){d.state="diving";d.diveSpeed=0.3;
+            d.angle=Math.atan2(SHIP.y-d.y,SHIP.x-d.x)}
+        } else if(d.state==="diving"){
+          d.diveSpeed=Math.min(d.diveSpeed+0.04*dt,4.5);
+          // Home toward ship
+          const ta=Math.atan2(SHIP.y-d.y,SHIP.x-d.x);
+          let diff=ta-d.angle;while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;
+          d.angle+=diff*0.06*dt;
+          d.x+=Math.cos(d.angle)*d.diveSpeed*dt;
+          d.y+=Math.sin(d.angle)*d.diveSpeed*dt;
+          // Trail
+          if(Math.random()<0.6)d.trail.push({x:d.x,y:d.y,life:1});
+          // Impact check
+          const dd=Math.sqrt((d.x-SHIP.x)**2+(d.y-SHIP.y)**2);
+          if(dd<25){d.alive=false;d.state="dead";g.hits++;g.shk=8;g.flash=1;
+            for(let j=0;j<20;j++){const a=Math.random()*Math.PI*2,v=1+Math.random()*4;
+              g.particles.push({x:SHIP.x,y:SHIP.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:1,
+                sz:2+Math.random()*4,c:["#ff2222","#ff6600","#ffcc00"][Math.floor(Math.random()*3)],type:"fire"})}}
+        }
+        // Update trail
+        d.trail.forEach(tr=>{tr.life-=0.04*dt});
+        d.trail=d.trail.filter(tr=>tr.life>0);
+      });
+      // ── DRAW ──
+      ctx.save();
+      // Screen shake
+      if(g.shk>0.1){const sx=(Math.random()-0.5)*g.shk,sy=(Math.random()-0.5)*g.shk;
+        ctx.translate(sx,sy);g.shk*=Math.pow(0.88,dt)}
+      // Sky gradient
+      const sky=ctx.createLinearGradient(0,0,0,H);
+      sky.addColorStop(0,"#0a1628");sky.addColorStop(0.6,"#162844");sky.addColorStop(1,"#1a3050");
+      ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+      // Stars
+      ctx.fillStyle="rgba(255,255,255,0.3)";
+      for(let i=0;i<30;i++){const sx=(i*137.5)%W,sy=(i*97.3)%H*0.4;
+        ctx.fillRect(sx,sy,1,1)}
+      // Ocean at bottom
+      const ocean=ctx.createLinearGradient(0,H-80,0,H);
+      ocean.addColorStop(0,"#0b2040");ocean.addColorStop(1,"#061530");
+      ctx.fillStyle=ocean;ctx.fillRect(0,H-80,W,80);
+      // Wave lines
+      ctx.strokeStyle="rgba(100,180,255,0.08)";ctx.lineWidth=1;
+      for(let w=0;w<3;w++){ctx.beginPath();
+        for(let x=0;x<W;x+=4){ctx.lineTo(x,H-70+w*15+Math.sin(x*0.02+g.elapsed*2+w)*4)}ctx.stroke()}
+      // Draw drone trails
+      g.drones.forEach(d=>{
+        d.trail.forEach(tr=>{ctx.globalAlpha=tr.life*0.4;ctx.fillStyle="#ff6600";
+          ctx.beginPath();ctx.arc(tr.x,tr.y,2,0,Math.PI*2);ctx.fill()});
+      });
+      ctx.globalAlpha=1;
+      // Draw drones
+      g.drones.forEach(d=>{
+        if(!d.alive){
+          if(d.flashT===undefined)d.flashT=1;
+          if(d.flashT>0){d.flashT-=0.03*dt;ctx.globalAlpha=d.flashT*0.4;ctx.fillStyle="#ff4400";
+            ctx.beginPath();ctx.arc(d.x,d.y,8+10*(1-d.flashT),0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+          return;
+        }
+        const t=g.elapsed;
+        ctx.save();ctx.translate(d.x,d.y);
+        if(d.state==="diving"){
+          ctx.rotate(d.angle+Math.PI/2);
+          // Dive trail glow
+          ctx.fillStyle="rgba(255,80,0,0.15)";ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.fill();
+        } else {
+          ctx.rotate(Math.sin(t*2+d.id)*0.2);
+        }
+        // Wing body
+        ctx.fillStyle=d.state==="diving"?"#cc3300":"#555";
+        ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(-14,4);ctx.lineTo(-12,6);ctx.lineTo(0,2);
+        ctx.lineTo(12,6);ctx.lineTo(14,4);ctx.closePath();ctx.fill();
+        // Fuselage
+        ctx.fillStyle=d.state==="diving"?"#aa2200":"#444";
+        ctx.fillRect(-2,-10,4,14);
+        // Tail
+        ctx.fillStyle=d.state==="diving"?"#cc3300":"#555";
+        ctx.beginPath();ctx.moveTo(-5,4);ctx.lineTo(0,8);ctx.lineTo(5,4);ctx.fill();
+        // Engine glow
+        if(d.state==="diving"){ctx.fillStyle="#ff8800";ctx.beginPath();ctx.arc(0,8,3+Math.random()*2,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle="#ffcc00";ctx.beginPath();ctx.arc(0,8,1.5,0,Math.PI*2);ctx.fill()}
+        ctx.restore();
+        // ── DIVE TIMER INDICATOR ── (ring + countdown)
+        if(d.state==="loiter"){
+          const pct=d.loiterTimer/d.loiterMax; // 1=full, 0=about to dive
+          const urgency=1-pct;
+          // Timer ring
+          const ringR=16;
+          ctx.strokeStyle=urgency>0.7?"#ff2222":urgency>0.4?"#ff8800":"rgba(255,255,255,0.2)";
+          ctx.lineWidth=urgency>0.7?2.5:urgency>0.4?2:1;
+          ctx.beginPath();ctx.arc(d.x,d.y,ringR,-Math.PI/2,-Math.PI/2+(1-pct)*Math.PI*2);ctx.stroke();
+          // Pulsing warning when close to dive
+          if(urgency>0.6){
+            const pulse=Math.sin(t*8)*0.3+0.3;
+            ctx.globalAlpha=pulse*urgency;
+            ctx.fillStyle="#ff2222";ctx.beginPath();ctx.arc(d.x,d.y,ringR+4,0,Math.PI*2);ctx.fill();
+            ctx.globalAlpha=1;
+          }
+          // Countdown number
+          const secs=Math.ceil(d.loiterTimer*60/60);
+          if(secs<=4){
+            ctx.fillStyle=secs<=2?"#ff2222":"#ff8800";ctx.font="bold 9px monospace";ctx.textAlign="center";
+            ctx.fillText(secs+"s",d.x,d.y-20);ctx.textAlign="left"}
+        }
+        // Dive arrow for actively diving drones
+        if(d.state==="diving"){
+          ctx.fillStyle="#ff4444";ctx.font="bold 10px monospace";ctx.textAlign="center";
+          ctx.fillText("▼ DIVE",d.x,d.y-14);ctx.textAlign="left";
+        }
+      });
+      // Draw ship
+      ctx.save();ctx.translate(SHIP.x,SHIP.y);
+      // Shadow
+      ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(2,3,18,7,0,0,Math.PI*2);ctx.fill();
+      // Hull
+      ctx.fillStyle="#5a6a7a";ctx.beginPath();ctx.moveTo(0,-16);ctx.bezierCurveTo(10,-12,14,0,12,10);
+      ctx.lineTo(-12,10);ctx.bezierCurveTo(-14,0,-10,-12,0,-16);ctx.fill();
+      // Deck
+      ctx.fillStyle="#4a5a6a";ctx.fillRect(-8,-4,16,8);
+      // Bridge
+      ctx.fillStyle="rgba(200,220,255,0.4)";ctx.fillRect(-4,2,8,5);
+      // CIWS turret
+      if(hasCIWS){ctx.fillStyle=g.ciwsCooldown>25?"#44ff44":"#2a4a2a";ctx.fillRect(-3,-14,6,4);
+        ctx.fillStyle="#3a5a3a";ctx.fillRect(-1,-18,2,5)}
+      ctx.restore();
+      // Draw particles
+      g.particles.forEach(p=>{
+        if(p.type==="tracer"){p.life-=0.06*dt;
+          if(p.life>0){ctx.globalAlpha=p.life;ctx.strokeStyle=p.c;ctx.lineWidth=p.sz;
+            ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x2,p.y2);ctx.stroke();
+            ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(p.x2,p.y2,2,0,Math.PI*2);ctx.fill()}}
+        else if(p.type==="jam"){p.life-=0.03*dt;
+          if(p.life>0){ctx.globalAlpha=p.life*0.3;ctx.strokeStyle=p.c;ctx.lineWidth=2;
+            ctx.beginPath();ctx.arc(p.x,p.y,p.sz*(2-p.life),0,Math.PI*2);ctx.stroke()}}
+        else{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=0.06*dt;p.life-=0.025*dt;
+          if(p.life>0){ctx.globalAlpha=p.life;ctx.fillStyle=p.c;
+            ctx.beginPath();ctx.arc(p.x,p.y,p.sz*p.life,0,Math.PI*2);ctx.fill()}}
+      });
+      g.particles=g.particles.filter(p=>p.life>0);
+      ctx.globalAlpha=1;
+      // Hit flash overlay
+      if(g.flash>0){ctx.globalAlpha=g.flash*0.3;ctx.fillStyle="#e74c3c";ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;g.flash*=Math.pow(0.9,dt)}
+      // ── HUD ──
+      ctx.fillStyle="rgba(4,10,20,0.85)";ctx.fillRect(0,0,W,34);
+      ctx.strokeStyle="rgba(100,160,220,0.15)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,34);ctx.lineTo(W,34);ctx.stroke();
+      // Kill counter
+      ctx.fillStyle="#2ecc71";ctx.font="bold 11px monospace";
+      ctx.fillText("KILLS:"+g.kills+"/"+totalDrones,8,14);
+      // Hits
+      ctx.fillStyle=g.hits>2?"#e74c3c":"#ff8844";ctx.fillText("HITS:"+g.hits,8,28);
+      // Ammo
+      if(rounds>0){ctx.fillStyle=g.ammo>0?"#ff8844":"#444";ctx.font="bold 10px monospace";ctx.fillText("💥"+g.ammo+" tap",130,14)}
+      // CIWS indicator
+      if(hasCIWS){ctx.fillStyle=g.ciwsCooldown<=0?"#44ff44":"#2a4a2a";ctx.font="bold 10px monospace";
+        ctx.fillText("🔫 CIWS"+(g.ciwsCooldown<=0?" RDY":" "+(Math.ceil(g.ciwsCooldown/15))+"s"),130,28)}
+      // Active drones
+      const alive=g.drones.filter(d=>d.alive).length;const pending=g.spawnQueue.length;
+      ctx.fillStyle=S.accent;ctx.fillText("INCOMING:"+(alive+pending),250,14);
+      // Timer — shows countdown while spawning, then "CLEAR!" when spawn done
+      const timeLeft=Math.max(0,Math.ceil(GAME_TIME-g.elapsed));
+      ctx.font="bold 16px "+S.titleFont;ctx.textAlign="right";
+      if(timeLeft>0){ctx.fillStyle=timeLeft<=5?"#e74c3c":S.accent;ctx.fillText(timeLeft+"s",W-10,22)}
+      else{ctx.fillStyle="#ff8844";ctx.fillText("CLEAR!",W-10,22)}
+      ctx.textAlign="left";
+      // Progress bar
+      const progPct=Math.min(1,g.elapsed/GAME_TIME);
+      ctx.fillStyle="rgba(255,255,255,0.06)";ctx.fillRect(0,H-4,W,4);
+      ctx.fillStyle=S.accent;ctx.fillRect(0,H-4,W*progPct,4);
+      ctx.restore(); // screen shake
+      // End condition — all spawned drones killed or impacted (timer only stops spawning)
+      const allDone=g.spawnQueue.length===0&&g.drones.length>0&&g.drones.every(d=>!d.alive);
+      if(allDone){
+        g.active=false;
+        const survived=g.hits;const pct=g.kills/totalDrones;
+        onComplete({success:pct>=0.6,
+          hullDmg:Math.round((survived===0?0:survived<=2?10:survived<=4?20:35)*arm),
+          cargoLoss:(survived===0?0:survived<=2?0.03:survived<=4?0.08:0.15)*arm,
+          repairCost:survived*80000,
+          msg:survived===0?"All drones neutralized! Zero impacts.":survived<=2?g.kills+" kills. "+survived+" got through.":survived+" impacts. Deck heavily damaged."});
+        return;
+      }
+      requestAnimationFrame(loop);
+    };requestAnimationFrame(loop);
+    return()=>{g.active=false;canvas.removeEventListener("click",cc)};
+  },[]);
+  return <canvas ref={ref} style={{borderRadius:8,border:"1px solid rgba(100,160,220,0.15)",cursor:"crosshair"}}/>;
+}
+
+// ══════════ RADIO SCAN (moving target) ══════════
+function RadioScanGame({onComplete,shipName,isSanctioned}){
+  const[initTarget]=useState(()=>15+Math.random()*20);
+  const[freq,setFreq]=useState(50);
+  const[time,setTime]=useState(14);const[holdTime,setHoldTime]=useState(0);const[done,setDone]=useState(false);const[locked,setLocked]=useState(false);
+  const[targetPos,setTargetPos]=useState(()=>initTarget);const[chars,setChars]=useState(0);
+  const doneRef=useRef(false);const freqRef=useRef(50);const targetRef=useRef(initTarget);const holdRef=useRef(0);const charsRef=useRef(0);
+  const waveRef=useRef(null);
+  const fullMsg="USS CARNEY USS CARNEY THIS IS "+shipName.toUpperCase()+" // POS 26-15N 056-30E // INBOUND STRAIT OF HORMUZ // REQUEST TRANSIT CORRIDOR ASSIGNMENT // CARGO: "+(isSanctioned?"[IRANIAN ORIGIN — OFAC SANCTIONED CRUDE]":"CRUDE OIL — CLEAN MANIFEST")+" // SOULS ON BOARD 28 // OVER";
+  // Moving target
+  useEffect(()=>{if(done)return;const iv=setInterval(()=>{setTargetPos(t=>{const speed=0.8+Math.random()*0.4;const dir=Math.sin(Date.now()*0.001)*speed;const nv=clamp(t+dir,15,85);targetRef.current=nv;return nv})},100);return()=>clearInterval(iv)},[done]);
+  const diff=Math.abs(freq-targetPos),sig=Math.max(0,1-diff/25);
+  // Countdown + hold + message reveal
+  useEffect(()=>{if(done)return;const iv=setInterval(()=>{
+    const curDiff=Math.abs(freqRef.current-targetRef.current),curSig=Math.max(0,1-curDiff/25);
+    if(curDiff<4){holdRef.current+=1;setHoldTime(holdRef.current);
+      if(holdRef.current>=3&&!doneRef.current){doneRef.current=true;setLocked(true);setDone(true);return}}
+    else{holdRef.current=0;setHoldTime(0)}
+    // Reveal message chars based on signal quality
+    if(curSig>0.5){const add=Math.floor(curSig*12);charsRef.current=Math.min(charsRef.current+add,fullMsg.length);setChars(charsRef.current)}
+    setTime(t=>{if(t<=1){if(!doneRef.current){doneRef.current=true;setDone(true)}return 0}return t-1});
+  },1000);return()=>clearInterval(iv)},[done]);
+  // Smooth char reveal between ticks
+  useEffect(()=>{if(done)return;const iv=setInterval(()=>{const curSig=Math.max(0,1-Math.abs(freqRef.current-targetRef.current)/25);
+    if(curSig>0.4){charsRef.current=Math.min(charsRef.current+1,fullMsg.length);setChars(charsRef.current)}},150);return()=>clearInterval(iv)},[done]);
+  const lockedRef=useRef(false);useEffect(()=>{lockedRef.current=locked},[locked]);
+  useEffect(()=>{if(done){const d=Math.abs(freqRef.current-targetRef.current);const sanPen=isSanctioned?0.08:0;
+    onComplete({success:lockedRef.current||d<6,hullDmg:0,cargoLoss:sanPen,
+      repairCost:lockedRef.current?0:d<6?50000:250000,
+      msg:lockedRef.current?("Comms locked! Navy verified."+(isSanctioned?" ⚠️ Sanctions flag — cargo manifest under review. "+((sanPen*100).toFixed(0))+"% held for inspection.":"")):d<6?("Partial signal. Brief delay."+(isSanctioned?" Sanctioned cargo flagged.":"")):"Failed. Navy boarded you."+(isSanctioned?" Sanctioned cargo seized.":"")})}},[done]);
+  const onFreqChange=e=>{const v=Number(e.target.value);freqRef.current=v;setFreq(v)};
+  // Waveform canvas
+  useEffect(()=>{const c=waveRef.current;if(!c)return;c.width=320;c.height=60;const ctx=c.getContext("2d");let af;
+    const draw=()=>{ctx.fillStyle="#030d08";ctx.fillRect(0,0,320,60);
+      // Scanlines
+      ctx.fillStyle="rgba(0,255,60,0.02)";for(let i=0;i<30;i++)ctx.fillRect(0,i*2,320,1);
+      const curSig=Math.max(0,1-Math.abs(freqRef.current-targetRef.current)/25);
+      // Waveform
+      ctx.strokeStyle=curSig>0.8?"rgba(0,255,80,0.9)":curSig>0.4?"rgba(0,200,100,0.6)":"rgba(0,120,80,0.3)";
+      ctx.lineWidth=curSig>0.8?2:1.5;ctx.beginPath();
+      for(let x=0;x<320;x++){const noise=curSig<0.3?(Math.random()-0.5)*40:(Math.random()-0.5)*5;
+        const wave=Math.sin(x*0.04+Date.now()*0.005)*15*curSig;
+        const y=30+wave+noise;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}
+      ctx.stroke();
+      // Center line
+      ctx.strokeStyle="rgba(0,255,80,0.08)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,30);ctx.lineTo(320,30);ctx.stroke();
+      // Signal peak indicator
+      if(curSig>0.7){ctx.fillStyle="rgba(0,255,80,"+(0.1+curSig*0.2)+")";ctx.fillRect(0,0,320,60)}
+      af=requestAnimationFrame(draw)};
+    draw();return()=>cancelAnimationFrame(af)},[]);
+  const lockPct=holdTime/3*100;
+  const termStyle={background:"#030d08",border:"1px solid rgba(0,180,60,0.2)",borderRadius:6,padding:"10px 12px",fontFamily:"'Courier New',monospace",fontSize:11,color:sig>0.6?"#0f0":"#0a5",lineHeight:1.6,minHeight:60,position:"relative",overflow:"hidden"};
+  return(<div style={{...card,borderColor:sig>0.8?"rgba(0,200,80,0.4)":"rgba(26,140,255,0.25)",background:"rgba(4,12,20,0.95)"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+      <div style={{color:S.blue,fontWeight:"bold",fontSize:15}}>📻 USS CARNEY — CH 16 VHF</div>
+      <div style={{color:time<=3?S.red:S.accent,fontWeight:"bold",fontSize:18,fontFamily:S.titleFont}}>{time}s</div>
+    </div>
+    {isSanctioned&&<div style={{background:"rgba(231,76,60,0.1)",border:"1px solid rgba(231,76,60,0.25)",borderRadius:4,padding:"4px 8px",fontSize:11,color:S.red,textAlign:"center",marginBottom:8}}>⚠️ SANCTIONED CARGO — Navy will flag Iranian-origin crude on manifest</div>}
+    <canvas ref={waveRef} style={{width:"100%",height:50,borderRadius:4,display:"block",marginBottom:8,border:"1px solid rgba(0,180,60,0.15)"}}/>
+    <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+      <div style={{flex:1}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#0a5",marginBottom:2}}><span>2MHz</span><span>FREQ: {(2+freq*0.26).toFixed(1)}MHz</span><span>28MHz</span></div>
+        <input type="range" min="0" max="100" value={freq} onChange={onFreqChange} style={{width:"100%",accentColor:sig>0.8?"#0f0":sig>0.4?S.accent:"#555"}}/>
+      </div>
+      <div style={{textAlign:"center",minWidth:60}}>
+        <div style={{fontSize:10,color:"#0a5",textTransform:"uppercase"}}>Signal</div>
+        <div style={{fontSize:20,fontWeight:"bold",color:sig>0.8?"#0f0":sig>0.5?S.accent:S.red,fontFamily:S.titleFont}}>{(sig*100).toFixed(0)}%</div>
+      </div>
+    </div>
+    <div style={{display:"flex",gap:6,marginBottom:8}}>
+      {[0,1,2].map(i=><div key={i} style={{flex:1,height:6,borderRadius:3,background:holdTime>i?"#0f0":"rgba(0,255,80,0.1)",transition:"background 0.3s",boxShadow:holdTime>i?"0 0 8px rgba(0,255,80,0.4)":"none"}}/>)}
+      <div style={{fontSize:11,color:holdTime>=3?"#0f0":"#0a5",fontWeight:"bold",minWidth:50,textAlign:"right"}}>{holdTime>=3?"LOCKED":"LOCK "+holdTime+"/3"}</div>
+    </div>
+    <div style={termStyle}>
+      {sig<0.3&&<div style={{position:"absolute",inset:0,background:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px)",pointerEvents:"none"}}/>}
+      <span style={{color:"#0a5"}}>TX&gt; </span>
+      <span style={{color:sig>0.6?"#0f0":"#0a5",textShadow:sig>0.8?"0 0 6px rgba(0,255,80,0.5)":"none"}}>{fullMsg.slice(0,chars)}</span>
+      {chars<fullMsg.length&&<span style={{animation:"blink 0.6s infinite",color:"#0f0"}}>█</span>}
+      {chars>=fullMsg.length&&<span style={{color:"#0f0",fontWeight:"bold"}}> ✓ TRANSMITTED</span>}
+      <style>{"@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}"}</style>
+    </div>
+    {locked&&<div style={{textAlign:"center",marginTop:8,color:"#0f0",fontWeight:"bold",fontSize:14,textShadow:"0 0 10px rgba(0,255,80,0.5)"}}>✓ FREQUENCY LOCKED — NAVY ACKNOWLEDGED</div>}
+  </div>);
+}
+
+// ══════════ NEGOTIATION (2 per game limit enforced in main) ══════════
+function NegotiationGame({onComplete,equip,onFatalFail,currentCargoPercent}){
+  const hasE=equip.includes("escort"),hasM=equip.includes("medic");
+  // Commander personality — hidden, affects how tactics work
+  const[commander]=useState(()=>{
+    const types=["greedy","aggressive","cautious"];
+    const type=types[Math.floor(Math.random()*3)];
+    const names=["Cpt. Rostami","Cdr. Jalili","Lt. Mohammadi","Cdr. Salehi","Cpt. Rezaei"];
+    const name=names[Math.floor(Math.random()*names.length)];
+    const portraits={greedy:"🤑",aggressive:"😠",cautious:"🧐"};
+    return{type,name,portrait:portraits[type],baseDemand:15+Math.random()*35};
+  });
+  const[round,setRound]=useState(0);// 0=intro, 1-4=rounds, 5=outcome
+  const[tension,setTension]=useState(25+Math.random()*15);
+  const[totalBribe,setTotalBribe]=useState(0);
+  const[dialogue,setDialogue]=useState([]);
+  const[phase,setPhase]=useState("typing");// typing, waiting, choose, response, outcome
+  const[typedText,setTypedText]=useState("");
+  const[choiceMade,setChoiceMade]=useState(null);
+  const[timeLeft,setTimeLeft]=useState(0);
+  const[timerActive,setTimerActive]=useState(false);
+  const[result,setResult]=useState(null);
+  const timerRef=useRef(null);const typeRef=useRef(null);
+  const pendingRef=useRef(null);// stores what "Next" button should do
+  // Commander dialogue per round
+  const getCommanderLine=(rnd,tens)=>{
+    const t=commander.type;
+    const lines={
+      1:{greedy:["Your ship is carrying valuable cargo, yes? Standard inspection fee applies...","We know what you're carrying. The question is what it's worth to you.","This is a busy waterway. Passage has a... cost."],
+         aggressive:["Stop your engines. You are in Iranian waters.","Your vessel is under investigation. Cooperate or face consequences.","You have 60 seconds to comply with our boarding request."],
+         cautious:["Routine inspection. We need to verify your cargo manifest.","Your transponder readings are... irregular. We need clarification.","We've received intelligence about suspicious vessels in this area."]},
+      2:{greedy:[tens>50?"Your offer insults me. We both know the cargo is worth far more.":"Interesting. But I think we can come to a better arrangement.",
+                tens>50?"Perhaps you don't understand the situation. Let me be clearer about the cost.":"My superiors expect a certain... consideration for safe passage."],
+         aggressive:[tens>50?"Your stalling is testing my patience. My gunboat crew is getting restless.":"I'm being reasonable. Don't make me reconsider.",
+                    tens>50?"I have authorization to use force. Choose wisely.":"My orders are clear. One way or another, this ends now."],
+         cautious:[tens>50?"Your documents don't add up. This is becoming a serious matter.":"I want to resolve this peacefully. Help me help you.",
+                  tens>50?"The irregularities are mounting. I may need to call in reinforcements.":"Let's not escalate this. I'm sure there's an explanation."]},
+      3:{greedy:[tens>60?"LAST CHANCE. Pay or we board.":"You're a reasonable captain. Let's close this deal.",
+                tens>60?"My crew needs compensation for this delay. The price just went up.":"I respect a shrewd negotiator. One more gesture of goodwill?"],
+         aggressive:[tens>60?"WEAPONS HOT. I will not ask again.":"Stand down and comply. Final warning.",
+                    tens>60?"Boarding team is ready. You have seconds.":"I'm giving you one last chance to cooperate."],
+         cautious:[tens>60?"This has gone on too long. I'm calling for backup.":"I believe we can still resolve this diplomatically.",
+                  tens>60?"My patience is wearing thin. The evidence is concerning.":"I don't want this to end badly for either of us."]},
+      4:{greedy:["This is your FINAL opportunity. Make it count.","The price of freedom. What's it worth to you?"],
+         aggressive:["Weapons are locked. Speak now.","Last words before I give the order?"],
+         cautious:["One last chance to explain yourself.","I need a reason not to board your vessel."]}
+    };
+    const pool=lines[rnd]?.[t]||["..."];
+    return pool[Math.floor(Math.random()*pool.length)];
+  };
+  // Tells — visual hints about commander type
+  const getTell=()=>{
+    const t=commander.type;
+    if(t==="greedy")return{hint:"👀 eyes keep glancing at cargo hold",color:S.accent};
+    if(t==="aggressive")return{hint:"✊ gripping sidearm, jaw clenched",color:S.red};
+    return{hint:"📋 studying documents carefully",color:S.blue};
+  };
+  // Tactics available each round
+  const getTactics=(rnd)=>{
+    const base=[
+      {id:"diplomacy",icon:"🤝",name:"Diplomacy",desc:"Appeal to reason",color:S.green},
+      {id:"bribe",icon:"💰",name:"Bribe",desc:"Offer cargo (~8-15%)",color:S.accent},
+      {id:"bluff",icon:"🎭",name:"Bluff",desc:"Risky deception",color:"#9b59b6"},
+    ];
+    if(hasE||rnd>=3)base.push({id:"intimidate",icon:"💪",name:"Intimidate",desc:hasE?"Escort shows force":"Stand your ground",color:S.red});
+    if(rnd<=2)base.push({id:"stall",icon:"⏳",name:"Stall",desc:"Buy time, read them",color:S.dim});
+    return base;
+  };
+  // Resolve a tactic choice
+  const resolveTactic=(tacticId)=>{
+    const t=commander.type;let dT=0,bribe=0,resp="";
+    const effective=(base,bonus)=>base+(bonus?bonus:0);
+    if(tacticId==="diplomacy"){
+      if(t==="cautious"){dT=-18;resp="Your appeal to protocol seems to resonate. He considers your words.";}
+      else if(t==="greedy"){dT=-6;resp="He listens politely but his eyes keep drifting to your hold.";}
+      else{dT=5;resp="He scoffs at diplomacy. 'We are past words, Captain.'";}
+    }else if(tacticId==="bribe"){
+      bribe=8+Math.floor(Math.random()*8);
+      if(t==="greedy"){dT=-25;resp="His eyes light up. 'A generous captain. Perhaps we can overlook certain irregularities...'";}
+      else if(t==="cautious"){dT=-12;resp="He pockets the offer discreetly. 'I suppose the paperwork can wait...'";}
+      else{dT=Math.random()>0.5?-8:10;resp=dT<0?"He grudgingly accepts. 'This doesn't change anything. But... proceed.'":"'You think you can BUY the Revolutionary Guard?!' He's insulted.";}
+    }else if(tacticId==="bluff"){
+      const luck=Math.random();
+      if(t==="cautious"&&luck>0.3){dT=-20;resp="You claim diplomatic immunity and flash credentials. He hesitates, uncertain.";}
+      else if(t==="greedy"&&luck>0.5){dT=-15;resp="You mention a 'friend' in Tehran. His demeanor shifts — he doesn't want trouble.";}
+      else if(t==="aggressive"&&luck>0.6){dT=-12;resp="Your bold bluff catches him off guard. For a moment, he's unsure.";}
+      else{dT=15+Math.floor(Math.random()*10);resp="He sees through your deception. 'Do you take me for a fool?!' Tension spikes.";}
+    }else if(tacticId==="intimidate"){
+      const power=hasE?0.8:0.3;
+      if(t==="cautious"){dT=hasE?-20:-5;resp=hasE?"Your armed escort moves into flanking position. The commander radios nervously.":"You puff up, but he's seen scarier.";}
+      else if(t==="aggressive"){dT=hasE?-10:15;resp=hasE?"He eyes your escort warily. 'Your protection won't last forever...'":"'You DARE threaten me?!' He signals his gunboat.";}
+      else{dT=hasE?-8:12;resp=hasE?"The escort makes him reconsider the cost-benefit. He's greedy, not stupid.":"Without backup, your bluster rings hollow. He smirks.";}
+    }else if(tacticId==="stall"){
+      dT=3+Math.floor(Math.random()*5);
+      const tells=[
+        t==="greedy"?"As you stall, you notice him eyeing the cargo manifest hungrily.":
+        t==="aggressive"?"His hand rests on his holster. This man doesn't bluff.":
+        "He re-reads your documents methodically. A careful man."];
+      resp=tells[0]+" (You study his behavior...)";
+    }
+    return{dT,bribe,resp};
+  };
+  // Start intro
+  useEffect(()=>{
+    const introLine="⚡ IRGC PATROL — "+commander.name+" hails your vessel.";
+    let i=0;setTypedText("");setPhase("typing");
+    typeRef.current=setInterval(()=>{i++;setTypedText(introLine.slice(0,i));if(i>=introLine.length){clearInterval(typeRef.current);pendingRef.current=()=>{setRound(1);startRound(1)};setPhase("waiting")}},30);
+    return()=>{clearInterval(typeRef.current);clearTimeout(timerRef.current)};
+  },[]);
+  const startRound=(rnd)=>{
+    const line=getCommanderLine(rnd,tension);
+    let i=0;setTypedText("");setPhase("typing");setChoiceMade(null);
+    typeRef.current=setInterval(()=>{i++;setTypedText(line.slice(0,i));if(i>=line.length){clearInterval(typeRef.current);setPhase("choose");setTimeLeft(12);setTimerActive(true)}},25);
+  };
+  // Countdown timer for choices
+  useEffect(()=>{
+    if(!timerActive||phase!=="choose")return;
+    if(timeLeft<=0){handleTactic("stall");return}
+    const t=setTimeout(()=>setTimeLeft(p=>p-1),1000);
+    return()=>clearTimeout(t);
+  },[timeLeft,timerActive,phase]);
+  const handleNext=()=>{if(pendingRef.current){const fn=pendingRef.current;pendingRef.current=null;fn()}};
+  const handleTactic=(tacticId)=>{
+    if(phase!=="choose")return;
+    setTimerActive(false);setPhase("response");setChoiceMade(tacticId);
+    const{dT,bribe,resp}=resolveTactic(tacticId);
+    const newTension=Math.max(0,Math.min(100,tension+dT));
+    const newBribe=totalBribe+bribe;
+    setTension(newTension);setTotalBribe(newBribe);
+    setDialogue(d=>[...d,{who:"player",tactic:tacticId},{who:"narrator",text:resp}]);
+    setTypedText("");
+    let i=0;
+    typeRef.current=setInterval(()=>{i++;setTypedText(resp.slice(0,i));if(i>=resp.length){clearInterval(typeRef.current);
+      // Set pending action for Next button
+      if(newTension>=95||round>=4||newTension<=5){
+        pendingRef.current=()=>resolveGame(newTension,newBribe);
+      }else{
+        pendingRef.current=()=>{const nr=round+1;setRound(nr);startRound(nr)};
+      }
+      setPhase("waiting");
+    }},20);
+  };
+  const resolveGame=(finalTension,finalBribe)=>{
+    clearInterval(typeRef.current);setPhase("outcome");
+    let out;
+    const bribePct=finalBribe/100;
+    if(finalTension>=90){
+      // Violent boarding
+      if(hasM){out={success:false,cargoLoss:0.6,hullDmg:35,fatal:false,emoji:"💀",title:"BOARDED — MEDIC SAVES CREW",
+        msg:"Tension too high! They board violently. Your medic prevents casualties but "+Math.round(60)+"% cargo seized.",color:S.red};}
+      else{out={success:false,cargoLoss:1,hullDmg:50,fatal:true,emoji:"💀",title:"VESSEL SEIZED",
+        msg:"The commander's patience ran out. Gunboat opens fire. All cargo lost.",color:S.red};}
+    }else if(finalTension<=20){
+      // Clean getaway
+      out={success:true,cargoLoss:Math.min(bribePct,0.15),hullDmg:0,fatal:false,emoji:"🕊️",title:"PASSAGE GRANTED",
+        msg:"You handled "+commander.name+" masterfully. "+(finalBribe>0?"Bribes totaled ~"+finalBribe+"% cargo.":"No bribes needed!"),color:S.green};
+    }else if(finalTension<=50){
+      // Tense but OK — some cargo loss
+      const seizure=Math.max(bribePct,0.05+finalTension*0.002);
+      out={success:true,cargoLoss:Math.min(seizure,0.3),hullDmg:5,fatal:false,emoji:"🤝",title:"GRUDGING RELEASE",
+        msg:commander.name+" lets you pass, but not before 'inspecting' ~"+Math.round(seizure*100)+"% of cargo.",color:S.accent};
+    }else{
+      // High tension — significant loss
+      const seizure=Math.max(bribePct+0.1,0.15+finalTension*0.004);
+      out={success:false,cargoLoss:Math.min(seizure,0.5),hullDmg:20,fatal:false,emoji:"😡",title:"FORCED INSPECTION",
+        msg:"At gunpoint, they seize ~"+Math.round(Math.min(seizure,0.5)*100)+"% of cargo. "+commander.name+" warns you not to return.",color:S.red};
+    }
+    setResult(out);
+    timerRef.current=setTimeout(()=>{
+      if(out.fatal)onFatalFail();
+      else onComplete({success:out.success,hullDmg:out.hullDmg,cargoLoss:out.cargoLoss,repairCost:0,msg:out.msg});
+    },3500);
+  };
+  const tell=getTell();
+  const tensionColor=tension<30?S.green:tension<60?S.accent:tension<80?"#e67e22":S.red;
+  const tensionLabel=tension<20?"Calm":tension<40?"Wary":tension<60?"Tense":tension<80?"Hostile":"Critical";
+  return(<div style={{...card,borderColor:tensionColor+"44",position:"relative",overflow:"hidden"}}>
+    {/* Header */}
+    <div style={{textAlign:"center",color:S.accent,fontWeight:"bold",fontSize:18,marginBottom:6}}>⚓ IRGC SHAKEDOWN</div>
+    {/* Commander portrait + info */}
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,padding:"8px 12px",background:"rgba(255,255,255,0.03)",borderRadius:8}}>
+      <div style={{fontSize:40,lineHeight:1,filter:phase==="typing"?"brightness(0.8)":"none",transition:"filter 0.3s"}}>{commander.portrait}</div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:14,fontWeight:"bold",color:S.text}}>{commander.name}</div>
+        <div style={{fontSize:11,color:S.dim}}>IRGC Naval Patrol</div>
+        {round>0&&<div style={{fontSize:10,color:tell.color,fontStyle:"italic",marginTop:2}}>{tell.hint}</div>}
+      </div>
+      {round>0&&<div style={{textAlign:"right"}}>
+        <div style={{fontSize:10,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Round {Math.min(round,4)}/4</div>
+      </div>}
+    </div>
+    {/* Tension meter */}
+    <div style={{marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}>
+        <span style={{color:S.dim}}>TENSION</span>
+        <span style={{color:tensionColor,fontWeight:"bold"}}>{tensionLabel} ({Math.round(tension)}%)</span>
+      </div>
+      <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden",position:"relative"}}>
+        <div style={{width:Math.min(tension,100)+"%",height:"100%",background:`linear-gradient(90deg,${S.green},${S.accent},${S.red})`,borderRadius:4,transition:"width 0.5s ease",position:"relative"}}>
+          {tension>70&&<div style={{position:"absolute",right:0,top:0,bottom:0,width:20,background:"rgba(255,255,255,0.3)",animation:"pulse 0.8s infinite alternate"}}/>}
+        </div>
+      </div>
+    </div>
+    {/* Dialogue area */}
+    <div style={{minHeight:70,padding:"10px 12px",background:"rgba(0,0,0,0.2)",borderRadius:8,marginBottom:10,border:"1px solid rgba(255,255,255,0.05)"}}>
+      <div style={{fontSize:13,color:S.text,lineHeight:1.6,fontStyle:phase==="typing"?"italic":"normal"}}>
+        {phase==="typing"||phase==="response"?<>
+          <span style={{color:phase==="response"?S.dim:tensionColor}}>{phase==="response"?"📡 ":"📻 "}</span>{typedText}<span style={{opacity:0.5,animation:"blink 0.8s infinite"}}>▌</span>
+        </>:phase==="waiting"?<>
+          <span style={{color:round===0?tensionColor:S.dim}}>{round===0?"📻 ":"📡 "}</span>{typedText}
+        </>:phase==="outcome"?null:<>
+          <span style={{color:tensionColor}}>📻 </span>{typedText}
+        </>}
+      </div>
+      {phase==="waiting"&&<div style={{textAlign:"right",marginTop:8}}>
+        <button onClick={handleNext} style={{background:S.accent,color:"#070d1a",border:"none",borderRadius:6,padding:"6px 18px",fontSize:13,fontWeight:"bold",cursor:"pointer",fontFamily:S.font}}>Next ▶</button>
+      </div>}
+    </div>
+    {/* Equipment badges */}
+    {(hasE||hasM)&&round===1&&phase==="choose"&&<div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:8,flexWrap:"wrap"}}>
+      {hasE&&<span style={{fontSize:10,color:S.blue,background:"rgba(26,140,255,0.1)",padding:"2px 8px",borderRadius:10}}>🚤 Escort</span>}
+      {hasM&&<span style={{fontSize:10,color:"#e056a0",background:"rgba(224,86,160,0.1)",padding:"2px 8px",borderRadius:10}}>🏥 Medic (safety net)</span>}
+    </div>}
+    {/* Tactic buttons */}
+    {phase==="choose"&&<div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <span style={{fontSize:11,color:S.dim}}>Choose your response:</span>
+        <span style={{fontSize:13,fontWeight:"bold",color:timeLeft<=3?S.red:S.accent,fontFamily:"monospace"}}>{timeLeft}s</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:getTactics(round).length>3?"1fr 1fr":"1fr 1fr 1fr",gap:6}}>
+        {getTactics(round).map(t=><button key={t.id} onClick={()=>handleTactic(t.id)}
+          style={{background:"rgba(255,255,255,0.04)",border:"1px solid "+t.color+"44",borderRadius:8,padding:"8px 6px",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}>
+          <div style={{fontSize:20}}>{t.icon}</div>
+          <div style={{fontSize:11,fontWeight:"bold",color:t.color}}>{t.name}</div>
+          <div style={{fontSize:9,color:S.dim}}>{t.desc}</div>
+        </button>)}
+      </div>
+    </div>}
+    {/* Outcome */}
+    {phase==="outcome"&&result&&<div style={{textAlign:"center",padding:"10px 0"}}>
+      <div style={{fontSize:48}}>{result.emoji}</div>
+      <div style={{fontSize:18,fontWeight:"bold",color:result.color,marginBottom:4}}>{result.title}</div>
+      <div style={{fontSize:13,color:S.text,lineHeight:1.6}}>{result.msg}</div>
+      {totalBribe>0&&<div style={{fontSize:11,color:S.dim,marginTop:4}}>Total bribes: ~{totalBribe}% cargo</div>}
+    </div>}
+    {/* CSS animation for blinking cursor */}
+    <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes pulse{0%{opacity:0.3}100%{opacity:0.7}}`}</style>
+  </div>);
+}
+
+// ══════════ SHIPYARD ══════════
+function Shipyard({onSelect}){
+  const[v,setV]=useState("suezmax");const vs=SHIPS[v];
+  return(<div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",marginBottom:14}}>
+      {Object.entries(SHIPS).map(([key,s])=><div key={key} onClick={()=>setV(key)} style={{...card,width:105,textAlign:"center",cursor:"pointer",marginBottom:0,padding:8,borderColor:v===key?s.color:S.border,background:v===key?s.color+"15":S.panel}}>
+        <ShipGraphic shipKey={key} width={95} showLabel={false}/><div style={{fontSize:12,fontWeight:"bold",color:s.color}}>{s.name}</div><div style={{fontSize:9,color:S.dim}}>{s.class}</div>
+      </div>)}
+    </div>
+    {vs&&<div style={{...card,borderColor:vs.color+"44"}}>
+      <div style={{textAlign:"center",marginBottom:10}}><ShipGraphic shipKey={v} width={280}/></div>
+      <div style={{fontFamily:S.titleFont,fontSize:22,fontWeight:"bold",color:vs.color,textAlign:"center"}}>{vs.name}</div>
+      <div style={{fontSize:13,color:S.dim,textAlign:"center",marginBottom:8}}>{vs.class} | {vs.lengthM}m × {vs.beamM}m | {vs.dwt} DWT</div>
+      <p style={{fontSize:14,color:S.text,lineHeight:1.6,textAlign:"center"}}>{vs.desc}</p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px 12px",fontSize:13,margin:"10px 0"}}>
+        <span>📦 <b>{(vs.capacity/1e6).toFixed(1)}M</b></span><span>⚡ <b>{vs.speed}kts</b></span><span>🔄 <b>{vs.maneuverability}/10</b></span>
+        <span>🛡️ <b>{vs.hullHP}HP</b></span><span>⛽ <b>{vs.fuelBurn}mt/d</b></span><span>📏 <b>{vs.hitboxW}px hitbox</b></span>
+      </div>
+      {[{l:"Cargo",v:vs.capacity/3200000,c:S.accent},{l:"Speed",v:vs.speed/20,c:S.blue},{l:"Agility",v:vs.maneuverability/10,c:S.green},{l:"Hull",v:vs.hullHP/180,c:"#e056a0"}].map((b,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,fontSize:12}}>
+        <span style={{width:55,color:S.dim}}>{b.l}</span><div style={{flex:1,height:6,background:"rgba(255,255,255,0.06)",borderRadius:3}}><div style={{width:(b.v*100)+"%",height:"100%",background:b.c,borderRadius:3}}/></div>
+      </div>)}
+      <div style={{margin:"8px 0",fontSize:13}}>{vs.pros.map((p,i)=><span key={i} style={{color:S.green,marginRight:10}}>✓ {p}</span>)}{vs.cons.map((c,i)=><span key={i} style={{color:S.red,marginRight:10}}>✗ {c}</span>)}</div>
+      <div style={{textAlign:"center",marginTop:12}}><button onClick={()=>onSelect(v)} style={btn(vs.color)}>SELECT {vs.name.toUpperCase()}</button></div>
+    </div>}
+  </div>);
+}
+
+// ══════════ MAIN GAME ══════════
+function Game(){
+  const[phase,setPhase]=useState("title");
+  const[testGame,setTestGame]=useState(null);const[testShip,setTestShip]=useState("suezmax");const[testResult,setTestResult]=useState(null);
+  const[testEquip,setTestEquip]=useState([]);const[testFlares,setTestFlares]=useState(3);const[testRounds,setTestRounds]=useState(5);
+  const[ship,setShip]=useState(null);const[origin,setOrigin]=useState(null);const[selOrigin,setSelOrigin]=useState(null);
+  const[equipment,setEquipment]=useState([]);const[flareCount,setFlareCount]=useState(0);const[roundCount,setRoundCount]=useState(0);const[cargo,setCargo]=useState(1);
+  const[hullHP,setHullHP]=useState(100);const[maxHull,setMaxHull]=useState(100);
+  const[repairCosts,setRepairCosts]=useState(0);const[eventLog,setEventLog]=useState([]);
+  const[currentEvent,setCurrentEvent]=useState(null);const[eventResult,setEventResult]=useState(null);
+  const[eventIndex,setEventIndex]=useState(0);const[sailProgress,setSailProgress]=useState(0);
+  const[catastrophe,setCatastrophe]=useState(null);const[gameOver,setGameOver]=useState(false);
+  const[negotiationsUsed,setNegotiationsUsed]=useState(0);
+  const[playerName,setPlayerName]=useState("");
+  const[miniGameStarted,setMiniGameStarted]=useState(false);
+  const sailRef=useRef(null);const eventsRef=useRef([]);
+  const equipCost=equipment.reduce((s,id)=>s+(EQUIPMENT.find(e=>e.id===id)?.cost||0),0)+flareCount*25000+roundCount*15000;
+
+  const initEvents=useCallback(()=>{
+    let pool=[...EVENTS].sort(()=>Math.random()-0.5).filter(e=>Math.random()<e.probability).slice(0,6);
+    // Cap negotiations at 2
+    let negCount=0;
+    pool=pool.filter(e=>{if(e.miniGame==="negotiate"){negCount++;return negCount<=2}return true});
+    eventsRef.current=pool;
+  },[]);
+
+  const applyResult=(r)=>{
+    if(r.cargoLoss)setCargo(c=>Math.max(0,c-r.cargoLoss));
+    if(r.hullDmg)setHullHP(h=>{const nh=Math.max(0,h-r.hullDmg);if(nh<=0)setGameOver(true);return nh});
+    if(r.repairCost)setRepairCosts(rc=>rc+r.repairCost);
+  };
+
+  const startSailing=useCallback((idx)=>{
+    setPhase("sailing");setSailProgress(idx/Math.max(1,eventsRef.current.length));
+    let ticks=0;const maxTicks=50+Math.random()*30;
+    if(sailRef.current)clearInterval(sailRef.current);
+    const catRoll=Math.random(),catAt=15+Math.floor(Math.random()*20);
+    const arm=equipment.includes("armor")?0.6:1;
+    sailRef.current=setInterval(()=>{
+      ticks++;setSailProgress(Math.min(1,(idx+ticks/maxTicks)/Math.max(1,eventsRef.current.length)));
+      if(ticks===catAt&&catRoll<0.10){
+        clearInterval(sailRef.current);
+        const cat=CATASTROPHES[Math.floor(Math.random()*CATASTROPHES.length)];
+        const hd=cat.fatal?999:Math.round(cat.hd*arm);const cl=cat.fatal?1:cat.cl*arm;
+        setCatastrophe({...cat,hd,cl,rc:cat.rc});
+        if(cat.fatal){setCargo(0);setHullHP(0);setGameOver(true)}else{applyResult({hullDmg:hd,cargoLoss:cl,repairCost:cat.rc})}
+        setEventLog(l=>[...l,{event:"CATASTROPHE",success:false,text:cat.text,hullDmg:hd,cargoLoss:cl,repairCost:cat.rc}]);
+        setPhase("catastrophe");return;
+      }
+      if(ticks>=maxTicks){clearInterval(sailRef.current);
+        if(idx>=eventsRef.current.length)setPhase("finale");
+        else{setCurrentEvent(eventsRef.current[idx]);setEventResult(null);setMiniGameStarted(false);setPhase("event")}
+      }
+    },80);
+  },[equipment]);
+
+  useEffect(()=>()=>{if(sailRef.current)clearInterval(sailRef.current)},[]);
+
+  const handleMGC=(r)=>{applyResult(r);setEventLog(l=>[...l,{event:currentEvent.name,success:r.success,text:r.msg,hullDmg:r.hullDmg,cargoLoss:r.cargoLoss,repairCost:r.repairCost}]);
+    if(r.cargoLoss>=1||hullHP<=0)setGameOver(true);
+    setEventResult(r)};
+  const handleNF=()=>{setCargo(0);setHullHP(0);setGameOver(true);setEventLog(l=>[...l,{event:currentEvent.name,success:false,text:"Fatal insult.",hullDmg:999,cargoLoss:1,repairCost:0}]);setEventResult({success:false,sunk:true,msg:"Vessel destroyed."})};
+  const proceedEv=()=>{const next=eventIndex+1;setEventIndex(next);startSailing(next)};
+  const proceedCat=()=>{if(gameOver){setPhase("endscreen");return}startSailing(eventIndex)};
+
+  const od=origin?ORIGINS.find(o=>o.id===origin):null;
+  const sd=ship?SHIPS[ship]:null;
+  const startBbl=sd&&od?Math.round(sd.capacity*od.cargoBonus):0;
+  const totalBbl=Math.round(startBbl*cargo);const lostBbl=startBbl-totalBbl;
+  const pCost=startBbl*(od?.price||70);const rev=totalBbl*(od?.sellPrice||85);
+  const fCost=Math.round((sd?.fuelBurn||50)*3.5*600);
+  const netP=rev-pCost-equipCost-fCost-repairCosts;
+
+  const reset=()=>{setPhase("title");setShip(null);setOrigin(null);setSelOrigin(null);setEquipment([]);setCargo(1);setHullHP(100);setMaxHull(100);setRepairCosts(0);setEventLog([]);setCurrentEvent(null);setEventResult(null);setEventIndex(0);setGameOver(false);setCatastrophe(null);setNegotiationsUsed(0)};
+
+  // ── TITLE ──
+  if(phase==="title")return(<div style={wrap}><div style={{textAlign:"center",paddingTop:30,maxWidth:500,margin:"0 auto"}}>
+    <div style={{fontSize:56}}>🛢️</div>
+    <h1 style={{fontFamily:S.titleFont,fontSize:28,color:S.accent,letterSpacing:2,textTransform:"uppercase"}}>Strait of Hormuz</h1>
+    <p style={{color:S.dim,fontSize:11,letterSpacing:3,textTransform:"uppercase",marginTop:4}}>Oil Tanker Survival Game</p>
+    <div style={{...card,textAlign:"left",marginTop:20}}>
+      <p style={{fontSize:13,lineHeight:1.7,color:S.dim}}>Choose your tanker. Load crude. Navigate mini-games through the world's most dangerous shipping lane. Ship size affects hitbox — bigger ships are harder to maneuver.</p>
+    </div>
+    <div style={{marginTop:16}}>
+      <input placeholder="Captain name (for leaderboard)" value={playerName} onChange={e=>setPlayerName(e.target.value)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid "+S.border,borderRadius:8,padding:"10px 16px",color:"#fff",fontFamily:S.font,fontSize:14,width:"80%",marginBottom:12}}/>
+    </div>
+    <button onClick={()=>setPhase("setup_ship")} style={{...btn(),fontSize:16,padding:"14px 40px"}}>▶ ENTER SHIPYARD</button>
+    <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:12}}>
+      <button onClick={()=>setPhase("howto")} style={{...btn("#4a90d9",false),fontSize:12,padding:"8px 20px"}}>📖 HOW TO PLAY</button>
+      <button onClick={()=>{setTestGame(null);setTestResult(null);setPhase("test_menu")}} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px"}}>🎮 TEST MINIGAMES</button>
+    </div>
+    {/* Leaderboard */}
+    {(()=>{const lb=getLeaderboard();if(!lb.length)return null;return <div style={{...card,marginTop:20,textAlign:"left"}}>
+      <div style={{fontWeight:"bold",color:S.accent,marginBottom:8}}>🏆 Leaderboard</div>
+      {lb.slice(0,10).map((e,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",borderBottom:"1px solid "+S.border}}>
+        <span style={{color:i<3?S.accent:"#fff"}}>#{i+1} {e.name||"Anon"} ({e.ship})</span>
+        <span style={{color:e.profit>0?S.green:S.red}}>${(e.profit/1e6).toFixed(2)}M</span>
+      </div>)}
+    </div>})()}
+  </div></div>);
+
+  // ── HOW TO PLAY ──
+  if(phase==="howto"){
+    const section=(title,icon,children)=><div style={{...card,borderColor:S.border}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        <span style={{fontSize:28}}>{icon}</span>
+        <span style={{fontFamily:S.titleFont,fontSize:17,fontWeight:"bold",color:S.accent}}>{title}</span>
+      </div>
+      {children}
+    </div>;
+    const tip=(text,color=S.dim)=><p style={{fontSize:12,color,lineHeight:1.7,margin:"4px 0"}}>{text}</p>;
+    const divider=<div style={{borderTop:"1px solid "+S.border,margin:"6px 0"}}/>;
+    return(<div style={wrap}><div style={{maxWidth:520,margin:"0 auto",paddingBottom:40}}>
+      <div style={{textAlign:"center",marginBottom:16}}>
+        <div style={{fontSize:42}}>🛢️</div>
+        <h1 style={{fontFamily:S.titleFont,fontSize:24,color:S.accent,letterSpacing:2,textTransform:"uppercase",margin:"6px 0"}}>How to Play</h1>
+        <p style={{color:S.dim,fontSize:11,letterSpacing:2,textTransform:"uppercase"}}>Survive the Strait. Deliver the Oil. Get Paid.</p>
+      </div>
+
+      {section("The Mission","🎯",<>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.8}}>You are the captain of an oil tanker navigating the <b style={{color:S.accent}}>Strait of Hormuz</b> — the most dangerous shipping lane on Earth. Load crude oil at a Persian Gulf terminal, survive the gauntlet of threats along the way, and deliver your cargo to the open ocean.</p>
+        {tip("Your profit = cargo delivered minus fuel, repairs, and equipment costs.")}
+        {tip("💡 Bigger ships carry more oil but are harder to maneuver in action sequences.",S.accent)}
+      </>)}
+
+      {section("Step 1: Choose Your Tanker","⚓",<>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:8}}>Five vessel classes, each with trade-offs:</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:11}}>
+          <div style={{background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 10px"}}>
+            <b style={{color:"#e67e22"}}>Small ships</b><br/>
+            <span style={{color:S.dim}}>Nimble & cheap, but low cargo capacity</span>
+          </div>
+          <div style={{background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 10px"}}>
+            <b style={{color:"#9b59b6"}}>Large ships</b><br/>
+            <span style={{color:S.dim}}>Massive payloads, but huge hitboxes</span>
+          </div>
+        </div>
+        {tip("Your ship's hitbox size directly affects how hard it is to dodge obstacles, missiles, and IRGC boats.")}
+      </>)}
+
+      {section("Step 2: Pick Your Port","🏗️",<>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:6}}>Each loading terminal offers different oil grades, cargo bonuses, and risk levels.</p>
+        <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:10,fontSize:12,lineHeight:1.8}}>
+          <span style={{color:S.green}}>🟢 Safe ports</span> — Lower risk, standard cargo<br/>
+          <span style={{color:S.accent}}>🟡 Moderate ports</span> — Better prices, more danger<br/>
+          <span style={{color:S.red}}>🔴 Risky ports</span> — Maximum cargo, maximum trouble
+        </div>
+        {tip("⚠️ Some ports load sanctioned oil. Navy patrols will notice.",S.red)}
+      </>)}
+
+      {section("Step 3: Equip Your Ship","🛡️",<>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:6}}>Spend from your operating budget on equipment and consumables. Each item gives advantages in specific encounters.</p>
+        <div style={{fontSize:12,color:S.text,lineHeight:1.9}}>
+          <div><span style={{color:S.accent}}>Equipment</span> — permanent toggles like radar, armor, escorts</div>
+          <div><span style={{color:S.accent}}>Consumables</span> — limited-use items like flares and deck gun rounds</div>
+        </div>
+        {tip("You won't know which threats you'll face. Choose wisely — or go in cheap and hope for the best.")}
+      </>)}
+
+      {section("Step 4: Run the Gauntlet","⚔️",<>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:10}}>As you transit the Strait, you'll face a randomized series of encounters. Each one is a mini-game that tests different skills:</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+          {[
+            {icon:"💣",name:"Minefield",hint:"Steer through floating mines",ctrl:"↑↓←→ or touch"},
+            {icon:"🇮🇷",name:"IRGC Boats",hint:"Outrun IRGC fast attack boats",ctrl:"↑↓←→ or touch"},
+            {icon:"🚀",name:"Missiles",hint:"Dodge homing anti-ship missiles",ctrl:"←→, flares, guns"},
+            {icon:"🌪️",name:"Shamal",hint:"Navigate through zero visibility",ctrl:"↑↓←→ or touch"},
+            {icon:"🛩️",name:"Drones",hint:"Shoot down kamikaze UAVs before they dive-bomb your ship",ctrl:"Tap targets"},
+            {icon:"📻",name:"Radio Scan",hint:"Lock onto a moving frequency",ctrl:"Slider"},
+            {icon:"🇮🇷",name:"IRGC Patrol",hint:"Negotiate your way through",ctrl:"Tactic choices"},
+            {icon:"🤫",name:"Smugglers",hint:"A shady deal... or a trap?",ctrl:"Tactic choices"},
+          ].map((g,i)=><div key={i} style={{background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"7px 10px",fontSize:11}}>
+            <div><span style={{fontSize:16}}>{g.icon}</span> <b style={{color:S.text}}>{g.name}</b></div>
+            <div style={{color:S.dim,marginTop:2}}>{g.hint}</div>
+            <div style={{color:S.blue,fontSize:10,marginTop:1}}>{g.ctrl}</div>
+          </div>)}
+        </div>
+        {tip("Not every encounter appears every run. Adapt to whatever the Strait throws at you.")}
+      </>)}
+
+      {section("Combat Controls","🎮",<>
+        <div style={{fontSize:12,lineHeight:2}}>
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"2px 12px"}}>
+            <span style={{color:S.accent,fontWeight:"bold"}}>Movement</span><span style={{color:S.text}}>Arrow keys, WASD, or touch/drag</span>
+            <span style={{color:S.accent,fontWeight:"bold"}}>Deck Gun</span><span style={{color:S.text}}>SPACE or tap (boats, missiles & drones)</span>
+            <span style={{color:S.accent,fontWeight:"bold"}}>Flares</span><span style={{color:S.text}}>F key or double-tap (missiles only)</span>
+            <span style={{color:S.accent,fontWeight:"bold"}}>Drones</span><span style={{color:S.text}}>Tap/click directly on each target</span>
+          </div>
+        </div>
+      </>)}
+
+      {section("Scoring & Survival","💰",<>
+        <p style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:6}}>Your final score is based on <b style={{color:S.green}}>profit</b> — the money left after all costs:</p>
+        <div style={{background:"rgba(46,204,113,0.06)",borderRadius:8,padding:10,fontSize:12,lineHeight:1.9,border:"1px solid rgba(46,204,113,0.15)"}}>
+          <div><span style={{color:S.green}}>+</span> Cargo delivered × market price</div>
+          <div><span style={{color:S.red}}>−</span> Fuel costs</div>
+          <div><span style={{color:S.red}}>−</span> Equipment & consumable purchases</div>
+          <div><span style={{color:S.red}}>−</span> Repair costs from hull damage</div>
+          <div><span style={{color:S.red}}>−</span> Cargo lost to IRGC, smugglers, or catastrophe</div>
+        </div>
+        {divider}
+        <p style={{fontSize:12,color:S.dim,lineHeight:1.7}}>Take too much damage and your hull integrity drops. If it hits zero — or you anger the wrong people — <b style={{color:S.red}}>your voyage ends permanently</b>.</p>
+        {tip("🏆 Top scores are saved to the local leaderboard. Can you turn a profit?",S.accent)}
+      </>)}
+
+      {section("Tips for New Captains","💡",<>
+        <div style={{fontSize:12,color:S.text,lineHeight:2}}>
+          <div>• Start with a mid-size ship to learn the encounters</div>
+          <div>• Armor reduces ALL damage — it's never a bad pick</div>
+          <div>• Watch the IRGC commander's body language for clues</div>
+          <div>• Sanctions mean extra scrutiny from naval patrols</div>
+          <div>• Consumables are cheap insurance — bring a few rounds</div>
+          <div>• Sometimes the smartest play is to take the loss and survive</div>
+        </div>
+      </>)}
+
+      <div style={{textAlign:"center",marginTop:20}}>
+        <button onClick={()=>setPhase("title")} style={{...btn(),fontSize:15,padding:"12px 36px"}}>⚓ READY TO SAIL</button>
+      </div>
+    </div></div>);
+  }
+
+  // ── TEST MINIGAMES MENU ──
+  if(phase==="test_menu"){
+    const tsd=SHIPS[testShip];
+    const games=[
+      {id:"mines",name:"Minefield",emoji:"mine",desc:"Dodge mines — 30s"},
+      {id:"pirates",name:"IRGC Fast Boats",emoji:"irgcboat",desc:"Evade pursuers — 20s"},
+      {id:"missile",name:"Missile Dodge",emoji:"🚀",desc:"Dodge homing missiles — 15s"},
+      {id:"sandstorm",name:"Shamal",emoji:"🌪️",desc:"Navigate dust storm to exit"},
+      {id:"drones",name:"Drone Swarm",emoji:"drone",desc:"Shoot down kamikaze UAVs"},
+      {id:"radio",name:"Radio Scan",emoji:"📻",desc:"Track moving frequency"},
+      {id:"negotiate",name:"Negotiation",emoji:"irgcofficer",desc:"Negotiate with IRGC"},
+    ];
+    return(<div style={wrap}><div style={{maxWidth:520,margin:"0 auto"}}>
+      <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>🎮 TEST MINIGAMES</h2>
+      <div style={{textAlign:"center",marginBottom:12}}>
+        <div style={{fontSize:11,color:S.dim,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Test Ship</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
+          {Object.entries(SHIPS).map(([k,sh])=><button key={k} onClick={()=>setTestShip(k)} style={{...btn(sh.color,testShip===k),fontSize:11,padding:"5px 10px",borderRadius:6}}>{sh.name}</button>)}
+        </div>
+        <div style={{fontSize:11,color:S.dim,marginTop:6}}>Hitbox: {tsd.hitboxW}×{tsd.hitboxH} | Agility: {tsd.maneuverability}/10 | Speed: {tsd.speed}kts</div>
+      </div>
+      <div style={{...card,padding:10,marginBottom:8}}>
+        <div style={{fontSize:11,color:S.dim,textTransform:"uppercase",letterSpacing:1,marginBottom:6,textAlign:"center"}}>Test Equipment</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center",marginBottom:8}}>
+          {EQUIPMENT.map(eq=>{const sel=testEquip.includes(eq.id);return <button key={eq.id} onClick={()=>setTestEquip(p=>sel?p.filter(e=>e!==eq.id):[...p,eq.id])} style={{fontSize:10,padding:"3px 7px",borderRadius:4,border:"1px solid "+(sel?S.green:S.border),background:sel?"rgba(46,204,113,0.15)":"transparent",color:sel?S.green:S.dim,cursor:"pointer"}}>{eq.icon} {eq.name}</button>})}
+        </div>
+        <div style={{display:"flex",gap:12,justifyContent:"center",alignItems:"center"}}>
+          <div style={{fontSize:11,color:S.dim}}>🎆 Flares: <b style={{color:"#ffdd44"}}>{testFlares}</b>
+            <input type="range" min="0" max="10" value={testFlares} onChange={e=>setTestFlares(Number(e.target.value))} style={{width:80,verticalAlign:"middle",marginLeft:4}}/></div>
+          <div style={{fontSize:11,color:S.dim}}>💥 Rounds: <b style={{color:"#ff8844"}}>{testRounds}</b>
+            <input type="range" min="0" max="25" value={testRounds} onChange={e=>setTestRounds(Number(e.target.value))} style={{width:80,verticalAlign:"middle",marginLeft:4}}/></div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {games.map(g=><div key={g.id} onClick={()=>{setTestGame(g.id);setTestResult(null);setPhase("test_play")}} style={{...card,cursor:"pointer",padding:14,marginBottom:0,textAlign:"center",borderColor:S.border,transition:"border-color 0.2s"}} onMouseEnter={e=>e.currentTarget.style.borderColor=S.accent} onMouseLeave={e=>e.currentTarget.style.borderColor=S.border}>
+          <div style={{fontSize:28}}>{g.emoji==="mine"?<svg width="40" height="40" viewBox="-20 -20 40 40" style={{display:"block",margin:"0 auto"}}>
+            <line x1="0" y1="10" x2="0" y2="18" stroke="#666" strokeWidth="1" strokeDasharray="2,2"/>
+            <circle cx="0" cy="0" r="10" fill="url(#mineGrad)" stroke="#444" strokeWidth="0.8"/>
+            {[0,1,2,3,4,5].map(i=>{const a=(i/6)*Math.PI*2;return <g key={i}><circle cx={Math.cos(a)*11.5} cy={Math.sin(a)*11.5} r="3" fill="#666"/><circle cx={Math.cos(a)*11.5} cy={Math.sin(a)*11.5} r="1.3" fill="#999"/></g>})}
+            <circle cx="0" cy="-3.5" r="2.5" fill="#e74c3c" opacity="0.8"/>
+            <defs><radialGradient id="mineGrad" cx="0.35" cy="0.35"><stop offset="0%" stopColor="#555"/><stop offset="100%" stopColor="#222"/></radialGradient></defs>
+          </svg>:g.emoji==="irgcboat"?<svg width="36" height="40" viewBox="-14 -14 28 28" style={{display:"block",margin:"0 auto"}}>
+            <ellipse cx="1" cy="2" rx="9" ry="4.5" fill="rgba(0,0,0,0.3)"/>
+            <path d="M0,-12 C-8,-4 -9,6 -7,10 L7,10 C9,6 8,-4 0,-12Z" fill="#2a3a2a"/>
+            <rect x="-5" y="0" width="10" height="6" fill="#1a2a1a"/>
+            <rect x="-6" y="-5" width="12" height="2" fill="#239f40"/>
+            <rect x="-6" y="-3" width="12" height="2" fill="#fff"/>
+            <rect x="-6" y="-1" width="12" height="2" fill="#da0000"/>
+            <path d="M-3,10 L0,17 L3,10" fill="rgba(150,200,255,0.35)"/>
+          </svg>:g.emoji==="drone"?<svg width="40" height="28" viewBox="-16 -12 32 24" style={{display:"block",margin:"0 auto"}}>
+            <polygon points="0,-10 -14,4 -12,6 0,2 12,6 14,4" fill="#555" stroke="#777" strokeWidth="0.5"/>
+            <rect x="-2" y="-10" width="4" height="14" fill="#444" rx="1"/>
+            <polygon points="-5,4 0,8 5,4" fill="#555"/>
+            <circle cx="0" cy="8" r="2.5" fill="#ff6600" opacity="0.8"/>
+            <circle cx="0" cy="8" r="1.2" fill="#ffcc00"/>
+          </svg>:g.emoji==="irgcofficer"?<svg width="36" height="40" viewBox="-18 -20 36 40" style={{display:"block",margin:"0 auto"}}>
+            <ellipse cx="0" cy="2" rx="10" ry="12" fill="#c49a6c"/>
+            <rect x="-12" y="-10" width="24" height="10" rx="3" fill="#2a3a2a"/>
+            <rect x="-14" y="-4" width="28" height="4" fill="#1a2a1a"/>
+            <rect x="-10" y="-4" width="20" height="2" fill="#333"/>
+            <circle cx="0" cy="-8" r="3" fill="#c8a84e"/>
+            <circle cx="-4" cy="3" r="1.5" fill="#222"/>
+            <circle cx="4" cy="3" r="1.5" fill="#222"/>
+            <path d="M-3,8 Q0,11 3,8" stroke="#222" fill="none" strokeWidth="0.8"/>
+            <rect x="-11" y="14" width="22" height="8" rx="2" fill="#2a3a2a"/>
+            <rect x="-8" y="14" width="16" height="2" fill="#239f40"/>
+            <rect x="-8" y="16" width="16" height="2" fill="#fff"/>
+            <rect x="-8" y="18" width="16" height="2" fill="#da0000"/>
+          </svg>:g.emoji}</div>
+          <div style={{fontSize:14,fontWeight:"bold",color:"#fff",marginTop:4}}>{g.name}</div>
+          <div style={{fontSize:11,color:S.dim}}>{g.desc}</div>
+        </div>)}
+      </div>
+      <div style={{textAlign:"center",marginTop:14}}><button onClick={()=>setPhase("title")} style={btn("#3a5070",false)}>← BACK</button></div>
+    </div></div>);
+  }
+
+  if(phase==="test_play"){
+    const tsd=SHIPS[testShip];
+    const onDone=(r)=>setTestResult(r);
+    const onFatal=()=>setTestResult({success:false,sunk:true,msg:"Vessel destroyed."});
+    return(<div style={gameWrap}><div style={{maxWidth:580,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+      <div style={{...card,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13,marginBottom:8}}>
+        <span style={{color:S.accent,fontWeight:"bold"}}>🎮 TEST: {testGame?.toUpperCase()}</span>
+        <span style={{color:S.dim}}>{tsd.name} ({tsd.hitboxW}×{tsd.hitboxH})</span>
+      </div>
+      <div style={{...fieldCenter,overflow:"auto"}}>
+        {!testResult&&<div style={{width:"100%"}}>
+          {testGame==="mines"&&<MineFieldGame onComplete={onDone} agility={tsd.maneuverability} equip={testEquip} shipKey={testShip}/>}
+          {testGame==="pirates"&&<PirateChaseGame onComplete={onDone} shipSpeed={tsd.speed} equip={testEquip} shipKey={testShip} rounds={testRounds}/>}
+          {testGame==="missile"&&<MissileDodgeGame onComplete={onDone} agility={tsd.maneuverability} equip={testEquip} shipKey={testShip} flares={testFlares} rounds={testRounds}/>}
+          {testGame==="sandstorm"&&<SandstormGame onComplete={onDone} agility={tsd.maneuverability} equip={testEquip} shipKey={testShip}/>}
+          {testGame==="drones"&&<DroneTapGame onComplete={onDone} equip={testEquip} rounds={testRounds}/>}
+          {testGame==="radio"&&<RadioScanGame onComplete={onDone} shipName={"MV "+tsd.name} isSanctioned={false}/>}
+          {testGame==="negotiate"&&<NegotiationGame onComplete={onDone} equip={testEquip} onFatalFail={onFatal} currentCargoPercent={100}/>}
+        </div>}
+        {testResult&&<div style={{...card,borderColor:testResult.sunk?S.red:testResult.success?S.green:S.accent,borderWidth:2,width:"100%"}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:40}}>{testResult.sunk?"💀":testResult.success?"✅":"💥"}</div>
+            <p style={{fontSize:18,fontWeight:"bold",color:testResult.sunk?S.red:testResult.success?S.green:S.accent,margin:"6px 0"}}>{testResult.sunk?"SUNK":testResult.success?"SUCCESS":"DAMAGE"}</p>
+            <p style={{fontSize:14,color:S.text}}>{testResult.msg}</p>
+            {testResult.hullDmg>0&&<p style={{fontSize:12,color:S.red}}>Hull: -{testResult.hullDmg}HP</p>}
+            {testResult.cargoLoss>0&&testResult.cargoLoss<1&&<p style={{fontSize:12,color:S.accent}}>Cargo: -{(testResult.cargoLoss*100).toFixed(1)}%</p>}
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:14}}>
+            <button onClick={()=>{setTestResult(null);setPhase("test_play")}} style={btn()}>RETRY</button>
+            <button onClick={()=>setPhase("test_menu")} style={btn("#3a5070",false)}>MENU</button>
+          </div>
+        </div>}
+      </div>
+    </div></div>);
+  }
+
+  if(phase==="setup_ship")return(<div style={wrap}><div style={{maxWidth:620,margin:"0 auto"}}>
+    <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>⚓ SHIPYARD</h2>
+    <p style={{textAlign:"center",color:S.dim,fontSize:13,marginBottom:12}}>Bigger ships = more cargo but larger hitbox in mini-games.</p>
+    <Shipyard onSelect={k=>{setShip(k);setHullHP(SHIPS[k].hullHP);setMaxHull(SHIPS[k].hullHP);setPhase("setup_origin")}}/>
+  </div></div>);
+
+  if(phase==="setup_origin")return(<div style={wrap}><div style={{maxWidth:620,margin:"0 auto"}}>
+    <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>SELECT PORT</h2>
+    <p style={{textAlign:"center",color:S.dim,fontSize:13,marginBottom:10}}>Each port has a unique route to the US fleet.</p>
+    <GameMap originId={selOrigin} progress={null} events={null} eventIdx={0} selected={selOrigin} onSelect={id=>setSelOrigin(id)} mode="select"/>
+    {selOrigin&&<div style={{textAlign:"center",marginTop:14}}><button onClick={()=>{setOrigin(selOrigin);setPhase("setup_equip")}} style={btn()}>DEPART FROM {ORIGINS.find(o=>o.id===selOrigin)?.name.toUpperCase()}</button></div>}
+  </div></div>);
+
+  if(phase==="setup_equip"){const od2=ORIGINS.find(o=>o.id===origin);return(<div style={wrap}><div style={{maxWidth:600,margin:"0 auto"}}>
+    <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>OUTFIT SHIP</h2>
+    <div style={{textAlign:"center",color:S.accent,fontSize:13,fontWeight:"bold",marginBottom:10}}>${equipCost.toLocaleString()} invested</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+      {EQUIPMENT.map(eq=>{const sel=equipment.includes(eq.id);return <div key={eq.id} onClick={()=>setEquipment(p=>sel?p.filter(e=>e!==eq.id):[...p,eq.id])} style={{...card,cursor:"pointer",borderColor:sel?S.green:S.border,background:sel?"rgba(46,204,113,0.08)":S.panel,padding:10,marginBottom:0}}>
+        <div style={{fontSize:20}}>{eq.icon}</div><div style={{fontSize:12,fontWeight:"bold",color:sel?S.green:"#fff"}}>{eq.name}</div>
+        <div style={{fontSize:10,color:S.dim}}>{eq.desc}</div><div style={{fontSize:10,color:S.accent}}>${(eq.cost/1000).toFixed(0)}K</div>
+        <div style={{fontSize:9,color:S.blue,marginTop:2,fontStyle:"italic"}}>{eq.effects}</div>
+      </div>})}
+    </div>
+    <div style={{...card,marginTop:8,padding:12}}>
+      <div style={{fontSize:12,fontWeight:"bold",color:S.accent,marginBottom:8,textAlign:"center"}}>CONSUMABLES</div>
+      {CONSUMABLES.map(c=>{const val=c.id==="flares"?flareCount:roundCount;const setVal=c.id==="flares"?setFlareCount:setRoundCount;
+        return <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <span style={{fontSize:20}}>{c.icon}</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:12,fontWeight:"bold",color:"#fff"}}>{c.name} <span style={{color:S.dim,fontWeight:"normal"}}>— ${(c.cost/1000).toFixed(0)}K each</span></div>
+            <div style={{fontSize:9,color:S.blue,fontStyle:"italic"}}>{c.effects}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button onClick={()=>setVal(v=>Math.max(0,v-1))} style={{width:24,height:24,borderRadius:4,border:"1px solid "+S.border,background:S.panel,color:"#fff",cursor:"pointer",fontSize:14}}>-</button>
+            <span style={{fontSize:16,fontWeight:"bold",color:val>0?S.accent:S.dim,minWidth:24,textAlign:"center"}}>{val}</span>
+            <button onClick={()=>setVal(v=>Math.min(c.max,v+1))} style={{width:24,height:24,borderRadius:4,border:"1px solid "+S.border,background:S.panel,color:"#fff",cursor:"pointer",fontSize:14}}>+</button>
+          </div>
+          <span style={{fontSize:11,color:S.accent,minWidth:45,textAlign:"right"}}>${((val*c.cost)/1000).toFixed(0)}K</span>
+        </div>})}
+    </div>
+    <div style={{textAlign:"center",marginTop:14}}>
+      <button onClick={()=>{setCargo(1);setEventIndex(0);setEventLog([]);setGameOver(false);setCatastrophe(null);setRepairCosts(0);setNegotiationsUsed(0);setHullHP(SHIPS[ship].hullHP);initEvents();setTimeout(()=>startSailing(0),100)}} style={btn()}>🚢 LAUNCH VOYAGE</button>
+    </div>
+    <div style={{...card,marginTop:10,fontSize:12,color:S.dim}}>
+      <b style={{color:"#fff"}}>{SHIPS[ship].name}</b> from {od2?.flag} {od2?.name} | {(SHIPS[ship].capacity*od2?.cargoBonus/1e6).toFixed(2)}M bbl
+      <br/>💵 Buy ${od2?.price} → Sell ${od2?.sellPrice}/bbl = <span style={{color:S.green}}>${od2?.sellPrice-od2?.price}/bbl margin</span>
+    </div>
+  </div></div>)}
+
+  // HUD
+  const HUD=()=>{if(!sd||!od)return null;const est=totalBbl*od.sellPrice-startBbl*od.price-equipCost-fCost-repairCosts;const hp=Math.max(0,(hullHP/maxHull)*100);const hc=hp>60?S.green:hp>30?S.accent:S.red;
+    return <div style={{...card,padding:"10px 14px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,fontSize:13,marginBottom:14}}>
+      <div><div style={{fontSize:10,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Est. Profit</div><div style={{fontSize:18,fontWeight:"bold",color:est>0?S.green:S.red}}>${(est/1e6).toFixed(1)}M</div></div>
+      <div><div style={{fontSize:10,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Hull</div><div style={{fontSize:18,fontWeight:"bold",color:hc}}>{Math.round(hp)}%</div><div style={{background:"rgba(255,255,255,0.08)",borderRadius:3,height:5,marginTop:2}}><div style={{width:hp+"%",height:"100%",background:hc,borderRadius:3}}/></div></div>
+      <div><div style={{fontSize:10,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Cargo</div><div style={{fontSize:18,fontWeight:"bold",color:"#fff"}}>{(totalBbl/1e6).toFixed(2)}M</div></div>
+    </div>};
+
+  if(phase==="sailing")return(<div style={gameWrap}><div style={{maxWidth:580,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
+    <HUD/>
+    <div style={fieldCenter}>
+      <h2 style={{fontFamily:S.titleFont,color:S.accent,fontSize:19,marginBottom:8}}>UNDERWAY</h2>
+      <GameMap originId={origin} progress={sailProgress} events={eventsRef.current} eventIdx={eventIndex} mode="sail"/>
+      <div style={{color:S.dim,fontSize:15,marginTop:12}}><span style={{animation:"blink 1s infinite"}}>⚠</span> Scanning horizon...</div>
+      <style>{"@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}"}</style>
+    </div>
+  </div></div>);
+
+  if(phase==="catastrophe")return(<div style={{...gameWrap,background:"linear-gradient(180deg,#1a0505,#0d1b2e)"}}><div style={{maxWidth:520,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
+    <HUD/>
+    <div style={fieldCenter}>
+      <h2 style={{fontFamily:S.titleFont,color:S.red,fontSize:22}}>CATASTROPHE</h2>
+      <div style={{...card,borderColor:S.red,borderWidth:2,marginTop:14,width:"100%"}}>
+        <p style={{fontSize:16,lineHeight:1.7,color:"#fff"}}>{catastrophe?.text}</p>
+        {gameOver?<p style={{fontSize:16,color:S.red,fontWeight:"bold",marginTop:8}}>VESSEL SUNK.</p>:null}
+      </div>
+      <button onClick={proceedCat} style={{...btn(),marginTop:14}}>{gameOver?"FINAL ACCOUNTING":"CONTINUE"}</button>
+    </div>
+  </div></div>);
+
+  if(phase==="event"&&currentEvent)return(<div style={gameWrap}><div style={{maxWidth:580,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+    <HUD/>
+    <div style={{...fieldCenter,overflow:"auto"}}>
+    {!eventResult&&<>
+      {!miniGameStarted&&<div style={{...card,borderColor:S.red+"55",borderWidth:2,width:"100%"}}>
+        <div style={{textAlign:"center"}}><span style={{fontSize:40}}>{currentEvent.emoji}</span>
+        <h3 style={{fontFamily:S.titleFont,color:S.red,fontSize:20,margin:"6px 0"}}>{currentEvent.name}</h3></div>
+        <p style={{fontSize:14,lineHeight:1.6,color:S.text}}>{currentEvent.desc}</p>
+        <div style={{...card,background:"rgba(240,192,64,0.05)",borderColor:S.accent+"33",marginTop:8}}>
+          <div style={{fontSize:12,color:S.accent,fontWeight:"bold"}}>HOW TO PLAY</div>
+          <p style={{fontSize:13,color:S.text,margin:"4px 0"}}>{currentEvent.inst}</p>
+          <div style={{fontSize:12,color:S.dim}}>{currentEvent.ctrl}</div>
+        </div>
+        <div style={{textAlign:"center",marginTop:10}}><button onClick={()=>setMiniGameStarted(true)} style={btn()}>START</button></div>
+      </div>}
+      {miniGameStarted&&<div style={{width:"100%"}}>
+        {currentEvent.miniGame==="mines"&&<MineFieldGame onComplete={handleMGC} agility={sd.maneuverability} equip={equipment} shipKey={ship}/>}
+        {currentEvent.miniGame==="drones"&&<DroneTapGame onComplete={handleMGC} equip={equipment} rounds={roundCount}/>}
+        {currentEvent.miniGame==="pirates"&&<PirateChaseGame onComplete={handleMGC} shipSpeed={sd.speed} equip={equipment} shipKey={ship} rounds={roundCount}/>}
+        {currentEvent.miniGame==="missile"&&<MissileDodgeGame onComplete={handleMGC} agility={sd.maneuverability} equip={equipment} shipKey={ship} flares={flareCount} rounds={roundCount}/>}
+        {currentEvent.miniGame==="sandstorm"&&<SandstormGame onComplete={handleMGC} agility={sd.maneuverability} equip={equipment} shipKey={ship}/>}
+        {currentEvent.miniGame==="radio"&&<RadioScanGame onComplete={handleMGC} shipName={"MV "+sd.name} isSanctioned={origin==="kharg"||origin==="bandar"}/>}
+        {currentEvent.miniGame==="negotiate"&&<NegotiationGame onComplete={handleMGC} equip={equipment} onFatalFail={handleNF} currentCargoPercent={cargo*100}/>}
+      </div>}
+    </>}
+    {eventResult&&<div style={{...card,borderColor:eventResult.sunk?S.red:eventResult.success?S.green:S.accent,borderWidth:2,width:"100%"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:40}}>{eventResult.sunk?"💀":eventResult.success?"✅":"💥"}</div>
+        <p style={{fontSize:18,fontWeight:"bold",color:eventResult.sunk?S.red:eventResult.success?S.green:S.accent,margin:"6px 0"}}>{eventResult.sunk?"SUNK":eventResult.success?"SUCCESS":"DAMAGE"}</p>
+        <p style={{fontSize:14,color:S.text}}>{eventResult.msg}</p>
+      </div>
+      <div style={{textAlign:"center",marginTop:12}}>
+        {eventResult.sunk||gameOver?<button onClick={()=>setPhase("endscreen")} style={btn(S.red)}>FINAL ACCOUNTING</button>:
+        <button onClick={proceedEv} style={btn()}>{eventIndex+1>=eventsRef.current.length?"🏁 EXIT STRAIT":"CONTINUE"}</button>}
+      </div>
+    </div>}
+    </div>
+  </div></div>);
+
+  if(phase==="finale")return(<div style={gameWrap}><div style={{maxWidth:560,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
+    <HUD/>
+    <div style={fieldCenter}>
+      <div style={{fontSize:48}}>🇺🇸</div>
+      <h2 style={{fontFamily:S.titleFont,color:S.accent,fontSize:22}}>US NAVY ESCORT</h2>
+      <p style={{color:S.dim,fontSize:14,lineHeight:1.7,margin:"12px 0"}}>USS Carney takes point. The open Indian Ocean beckons.</p>
+      <GameMap originId={origin} progress={1} events={eventsRef.current} eventIdx={eventsRef.current.length} mode="sail"/>
+      <button onClick={()=>{
+        saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:netP,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
+        setPhase("endscreen");
+      }} style={{...btn(),marginTop:14}}>📊 FINAL ACCOUNTING</button>
+    </div>
+  </div></div>);
+
+  if(phase==="endscreen"){
+    const grade=gameOver?"F":cargo>0.9?"S":cargo>0.75?"A":cargo>0.5?"B":cargo>0.3?"C":"F";
+    const gc={S:S.accent,A:S.green,B:"#4ecdc4",C:"#f39c12",F:S.red}[grade];
+    const gl={S:"Maritime Legend",A:"Seasoned Captain",B:"Competent Skipper",C:"Lucky to Be Alive",F:gameOver?"Davy Jones' Locker":"Lloyd's Nightmare"}[grade];
+    return(<div style={wrap}><div style={{maxWidth:600,margin:"0 auto"}}>
+      <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>{gameOver?"VOYAGE LOST":"VOYAGE COMPLETE"}</h2>
+      <div style={{textAlign:"center",margin:"14px 0"}}><div style={{fontSize:56,fontWeight:"bold",color:gc,fontFamily:S.titleFont}}>{grade}</div><div style={{fontSize:16,color:gc,fontWeight:"bold"}}>{gl}</div></div>
+      <div style={card}>
+        <h3 style={{color:S.accent,fontSize:16,marginBottom:8,borderBottom:"1px solid "+S.border,paddingBottom:6}}>📊 PROFIT & LOSS</h3>
+        <div style={{fontSize:14,lineHeight:2.4}}>
+          <div style={{display:"flex",justifyContent:"space-between"}}><span>Starting</span><span>{startBbl.toLocaleString()} bbl</span></div>
+          <div style={{display:"flex",justifyContent:"space-between"}}><span>Lost</span><span style={{color:S.red}}>-{lostBbl.toLocaleString()}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid "+S.border,paddingTop:4,fontWeight:"bold"}}><span>Delivered</span><span style={{color:S.green}}>{totalBbl.toLocaleString()} bbl</span></div>
+          <div style={{borderTop:"1px solid "+S.border,marginTop:6,paddingTop:6}}>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:S.dim}}>Purchase @${od?.price}</span><span style={{color:S.red}}>-${(pCost/1e6).toFixed(2)}M</span></div>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span>Delivery @${od?.sellPrice}</span><span style={{color:S.green}}>${(rev/1e6).toFixed(2)}M</span></div>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span>Equipment</span><span style={{color:S.red}}>-${(equipCost/1e6).toFixed(2)}M</span></div>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span>Fuel</span><span style={{color:S.red}}>-${(fCost/1e6).toFixed(2)}M</span></div>
+            {repairCosts>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>Repairs</span><span style={{color:S.red}}>-${(repairCosts/1e6).toFixed(2)}M</span></div>}
+            <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid "+S.border,paddingTop:6,marginTop:6,fontWeight:"bold",fontSize:16}}>
+              <span>NET PROFIT</span><span style={{color:netP>0?S.green:S.red}}>${(netP/1e6).toFixed(2)}M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={card}>
+        <h3 style={{color:S.accent,fontSize:16,marginBottom:8}}>📜 LOG</h3>
+        {eventLog.map((e,i)=><div key={i} style={{fontSize:13,padding:"5px 0",borderBottom:"1px solid "+S.border}}>
+          <span style={{color:e.success?S.green:S.red,fontWeight:"bold"}}>{e.success?"✓":"✗"}</span> <b>{e.event}</b>
+          {e.hullDmg>0&&e.hullDmg<999&&<span style={{color:S.red}}> -{e.hullDmg}HP</span>}
+          {e.cargoLoss>0&&e.cargoLoss<1&&<span style={{color:S.accent}}> -{(e.cargoLoss*100).toFixed(1)}%</span>}
+          <div style={{color:S.dim,fontSize:12}}>{e.text}</div>
+        </div>)}
+      </div>
+      {totalBbl>0&&<div style={card}>
+        <h3 style={{color:S.accent,fontSize:16,marginBottom:8}}>🌍 PERSPECTIVE</h3>
+        {Object.entries(CONSUMPTION).map(([k,c])=>{const mins=(totalBbl/c.daily)*1440,hrs=mins/60;
+          return <div key={k} style={{marginBottom:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:13}}><span>{c.emoji} {c.name}</span><span style={{color:S.accent}}>{hrs>=1?hrs.toFixed(1)+"h":Math.round(mins)+"min"}</span></div>
+            <div style={{background:"#1a2d4a",borderRadius:3,height:5,overflow:"hidden"}}><div style={{width:Math.min(100,(mins/1440)*300)+"%",height:"100%",background:S.accent,borderRadius:3}}/></div>
+          </div>})}
+      </div>}
+      <div style={{...card,textAlign:"center",border:"1px solid "+S.accent+"33",padding:24}}>
+        <p style={{fontFamily:S.titleFont,fontSize:16,color:"#fff",lineHeight:1.8}}>The world is a complicated, sometimes terrible place.</p>
+        <p style={{fontSize:13,color:S.dim,lineHeight:1.7,margin:"10px 0"}}>Real crews navigate these waters under real threats so we can drive to work and argue about gas prices.</p>
+        <p style={{fontFamily:S.titleFont,fontSize:15,color:S.accent,lineHeight:1.8}}>But you can make it better. Go do one thing today to leave the world a little less terrible.</p>
+      </div>
+      <div style={{textAlign:"center",margin:"16px 0 30px"}}><button onClick={reset} style={btn("#3a5070",false)}>PLAY AGAIN</button></div>
+    </div></div>);
+  }
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Game));
+</script>
+</body>
+</html>
