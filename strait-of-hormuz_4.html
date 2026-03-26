@@ -231,7 +231,7 @@ function MineFieldGame({onComplete,agility,equip,shipKey}){
   const s=SHIPS[shipKey]||SHIPS.suezmax;
   useEffect(()=>{
     const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
-    const spd=2+agility*0.35,det=equip.includes("radar")?1.5:1,arm=equip.includes("armor")?0.6:1;
+    const spd=1.5+s.speed*0.2,det=equip.includes("radar")?1.5:1,arm=equip.includes("armor")?0.6:1;
     const hbW=s.hitboxW,hbH=s.hitboxH;
     const TOTAL_S=30,SAFE_S=25;
     const g={ship:{x:W/2,y:H-55},mines:[],dodged:0,hits:0,active:true,keys:{},particles:[],wake:[],startTime:performance.now(),elapsed:0,shk:0};
@@ -651,7 +651,7 @@ function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
   const ref=useRef(null);const s=SHIPS[shipKey]||SHIPS.suezmax;
   useEffect(()=>{
     const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
-    const spd=2.5+agility*0.3,arm=equip.includes("armor")?0.6:1;
+    const spd=1.8+s.speed*0.2,arm=equip.includes("armor")?0.6:1;
     const spdMult=equip.includes("jammer")?0.7:1;
     const maxHits=2;
     const hbW=s.hitboxW,hbH=s.hitboxH;
@@ -927,7 +927,7 @@ function SandstormGame({onComplete,agility,equip,shipKey}){
   const ref=useRef(null);const s=SHIPS[shipKey]||SHIPS.suezmax;
   useEffect(()=>{
     const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
-    const spd=1.5+agility*0.25,visMult=equip.includes("radar")?1.5:1,arm=equip.includes("armor")?0.6:1;
+    const spd=1.2+s.speed*0.15,visMult=equip.includes("radar")?1.5:1,arm=equip.includes("armor")?0.6:1;
     const hbW=s.hitboxW,hbH=s.hitboxH;
     const TOTAL_S=25;
     // Visibility radius — how far you can see from the ship
@@ -1142,7 +1142,7 @@ function DroneTapGame({onComplete,equip,rounds=0,shipKey="suezmax"}){
     const dsW=ds.hitboxW*1.1,dsH=ds.hitboxH*1.1; // scale for drone game visibility
     const SHIP={x:W/2,y:H-40-dsH};
     const g={drones:[],particles:[],active:true,kills:0,hits:0,spawned:0,
-      ammo:rounds,ammoCooldown:0,ciwsCooldown:0,ciwsTarget:null,
+      ammo:rounds,ammoCooldown:0,ciwsCooldown:60,ciwsTarget:null,
       startTime:performance.now(),elapsed:0,shk:0,flash:0,
       spawnQueue:[],jamRemain:jamCount};
     // Build spawn schedule — drones arrive in waves over time
@@ -1206,10 +1206,10 @@ function DroneTapGame({onComplete,equip,rounds=0,shipKey="suezmax"}){
         if(g.elapsed>=GAME_TIME){g.spawnQueue.length=0;break}
         g.spawnQueue.shift();
         spawnDrone();
-        // Jammer auto-kills early spawns
+        // Jammer marks early spawns for delayed kill (appear briefly then get jammed)
         if(g.jamRemain>0){const last=g.drones[g.drones.length-1];
-          g.jamRemain--;killDrone(last,"jammer");
-          g.particles.push({x:last.x,y:last.y,vx:0,vy:0,life:1.5,sz:30,c:"#4488ff",type:"jam"})}
+          g.jamRemain--;last.jamTimer=1.2;// seconds before jammer kills it
+        }
       }
       // CIWS auto-fire — targets diving drones, 1 kill per 2 seconds
       if(hasCIWS&&g.ciwsCooldown<=0){
@@ -1224,6 +1224,10 @@ function DroneTapGame({onComplete,equip,rounds=0,shipKey="suezmax"}){
       // Update drones
       g.drones.forEach(d=>{
         if(!d.alive)return;
+        // Jammer delayed kill
+        if(d.jamTimer!==undefined&&d.jamTimer>0){d.jamTimer-=dt/60;
+          if(d.jamTimer<=0){killDrone(d,"jammer");
+            g.particles.push({x:d.x,y:d.y,vx:0,vy:0,life:1.5,sz:30,c:"#4488ff",type:"jam"});return}}
         if(d.state==="loiter"){
           d.loiterTimer-=dt/60;
           // Orbit pattern
@@ -1718,6 +1722,8 @@ function Game(){
   const[negotiationsUsed,setNegotiationsUsed]=useState(0);
   const[playerName,setPlayerName]=useState("");
   const[miniGameStarted,setMiniGameStarted]=useState(false);
+  const[finalSellPrice,setFinalSellPrice]=useState(null);// null = not yet set
+  const[newsHistory,setNewsHistory]=useState([]);
   const sailRef=useRef(null);const eventsRef=useRef([]);
   const equipCost=equipment.reduce((s,id)=>s+(EQUIPMENT.find(e=>e.id===id)?.cost||0),0)+flareCount*25000+roundCount*15000;
 
@@ -1775,11 +1781,11 @@ function Game(){
   const sd=ship?SHIPS[ship]:null;
   const startBbl=sd&&od?Math.round(sd.capacity*od.cargoBonus):0;
   const totalBbl=Math.round(startBbl*cargo);const lostBbl=startBbl-totalBbl;
-  const pCost=startBbl*(od?.price||70);const rev=totalBbl*(od?.sellPrice||85);
+  const pCost=startBbl*(od?.price||70);const actSellPrice=finalSellPrice||od?.sellPrice||85;const rev=totalBbl*actSellPrice;
   const fCost=Math.round((sd?.fuelBurn||50)*3.5*600);
   const netP=rev-pCost-equipCost-fCost-repairCosts;
 
-  const reset=()=>{setPhase("title");setShip(null);setOrigin(null);setSelOrigin(null);setEquipment([]);setCargo(1);setHullHP(100);setMaxHull(100);setRepairCosts(0);setEventLog([]);setCurrentEvent(null);setEventResult(null);setEventIndex(0);setGameOver(false);setCatastrophe(null);setNegotiationsUsed(0)};
+  const reset=()=>{setPhase("title");setShip(null);setOrigin(null);setSelOrigin(null);setEquipment([]);setCargo(1);setHullHP(100);setMaxHull(100);setRepairCosts(0);setEventLog([]);setCurrentEvent(null);setEventResult(null);setEventIndex(0);setGameOver(false);setCatastrophe(null);setNegotiationsUsed(0);setFinalSellPrice(null);setNewsHistory([])};
 
   // ── TITLE ──
   if(phase==="title")return(<div style={wrap}><div style={{textAlign:"center",paddingTop:30,maxWidth:500,margin:"0 auto"}}>
@@ -2202,11 +2208,103 @@ function Game(){
       <p style={{color:S.dim,fontSize:14,lineHeight:1.7,margin:"12px 0"}}>USS Carney takes point. The open Indian Ocean beckons.</p>
       <GameMap originId={origin} progress={1} events={eventsRef.current} eventIdx={eventsRef.current.length} mode="sail"/>
       <button onClick={()=>{
-        saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:netP,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
-        setPhase("endscreen");
-      }} style={{...btn(),marginTop:14}}>📊 FINAL ACCOUNTING</button>
+        setFinalSellPrice(null);setNewsHistory([]);
+        if(gameOver){
+          saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:netP,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
+          setPhase("endscreen");
+        }else{setPhase("oilmarket")}
+      }} style={{...btn(),marginTop:14}}>{gameOver?"📊 FINAL ACCOUNTING":"📈 SELL OIL"}</button>
     </div>
   </div></div>);
+
+  // ── OIL MARKET ──
+  if(phase==="oilmarket"){
+    const basePrice=od?.sellPrice||85;
+    const curPrice=finalSellPrice||basePrice;
+    const waitsLeft=3-newsHistory.length;
+    const NEWS_POOL=[
+      // Bullish — escalation & supply disruption
+      {headline:"BREAKING: IRGC Seizes Two Tankers in Strait — Lloyd's Halts All New Policies",source:"Reuters",delta:()=>4+Math.floor(Math.random()*5),sentiment:"bull",emoji:"🚨",flavor:"TACO traders (Trump Always Chickens Out) are betting this blows over by Friday."},
+      {headline:"White House Posts 'Maximum Pressure 2.0' Thread — Iran Responds With Live-Fire Drill",source:"CNN",delta:()=>3+Math.floor(Math.random()*4),sentiment:"bull",emoji:"🔥",flavor:"The TACO index surged. Markets have seen this movie before."},
+      {headline:"Pentagon Deploys Second Carrier Group to Gulf — 'Routine Repositioning'",source:"AP",delta:()=>3+Math.floor(Math.random()*5),sentiment:"bull",emoji:"⚓",flavor:"Insiders note the last three 'routine repositionings' ended with a strongly worded tweet and a withdrawal."},
+      {headline:"Houthi Drone Swarm Hits Ras Tanura — Saudi Output Down 30%",source:"Al Jazeera",delta:()=>4+Math.floor(Math.random()*6),sentiment:"bull",emoji:"💥"},
+      {headline:"Iran Announces Strait 'Exercises' — All Commercial Traffic Rerouted",source:"BBC",delta:()=>3+Math.floor(Math.random()*4),sentiment:"bull",emoji:"🇮🇷"},
+      {headline:"US Sanctions Tightened — But No Secondary Enforcement (Again)",source:"FT",delta:()=>2+Math.floor(Math.random()*4),sentiment:"bull",emoji:"📈",flavor:"Classic TACO pattern: announce sanctions, skip enforcement, declare victory."},
+      {headline:"Chinese Demand Surges — Record Imports Through Hormuz",source:"Bloomberg",delta:()=>2+Math.floor(Math.random()*5),sentiment:"bull",emoji:"🇨🇳"},
+      {headline:"Refinery Fire in Texas — Gulf Coast Capacity Down 15%",source:"WSJ",delta:()=>2+Math.floor(Math.random()*4),sentiment:"bull",emoji:"🔥"},
+      // Bearish — de-escalation & oversupply
+      {headline:"Trump Calls Iran's Supreme Leader a 'Very Smart Guy, Tremendous' — Markets Confused",source:"Truth Social",delta:()=>-(3+Math.floor(Math.random()*5)),sentiment:"bear",emoji:"📉",flavor:"TACO trade confirmed. Traders who bet on chickening out are up 12% this quarter."},
+      {headline:"White House Walks Back 'All Options on the Table' to 'Most Options Near the Table'",source:"CNBC",delta:()=>-(2+Math.floor(Math.random()*4)),sentiment:"bear",emoji:"🌮",flavor:"The TACO (Trump Always Chickens Out) index just hit an all-time high."},
+      {headline:"Secret Backchannel Talks With Iran Leaked — Deal Framework Emerges",source:"WSJ",delta:()=>-(3+Math.floor(Math.random()*5)),sentiment:"bear",emoji:"🕊️"},
+      {headline:"OPEC Members Caught Overproducing — Cartel Discipline in Freefall",source:"Bloomberg",delta:()=>-(3+Math.floor(Math.random()*4)),sentiment:"bear",emoji:"🤥"},
+      {headline:"India Buys Record Russian Oil at 40% Discount — Hormuz Bypass Complete",source:"Times of India",delta:()=>-(2+Math.floor(Math.random()*5)),sentiment:"bear",emoji:"🇮🇳"},
+      {headline:"Trump Announces 'Beautiful Deal' With Iran — Details TBD (No Details Coming)",source:"Truth Social",delta:()=>-(4+Math.floor(Math.random()*4)),sentiment:"bear",emoji:"🤝",flavor:"TACO veterans saw this coming. Sell the escalation, buy the chickening out."},
+      {headline:"Global Recession Fears — IMF Slashes Demand Forecasts by 8%",source:"The Economist",delta:()=>-(3+Math.floor(Math.random()*5)),sentiment:"bear",emoji:"💀"},
+      {headline:"Norway Discovers Massive North Sea Field — 'Biggest in Decades'",source:"Reuters",delta:()=>-(2+Math.floor(Math.random()*4)),sentiment:"bear",emoji:"🇳🇴"},
+      // Mixed — chaos & comedy
+      {headline:"IRGC Commander Posts Selfie on Seized Tanker — Goes Viral, Gets Sanctions",source:"Twitter/X",delta:()=>Math.round((Math.random()-0.5)*4),sentiment:"mixed",emoji:"🤳",flavor:"The TACO desk is split. One analyst says war, the other says 'nah, he'll tweet about it and move on.'"},
+      {headline:"Goldman Sachs Intern Accidentally Buys 1M Barrels — 'Thought It Was Paper Trading'",source:"WSJ",delta:()=>Math.round((Math.random()-0.5)*5),sentiment:"mixed",emoji:"😬"},
+      {headline:"Elon Musk Tweets 'Oil is Dead' Then Buys Oil Futures — Classic",source:"Twitter/X",delta:()=>Math.round((Math.random()-0.5)*6),sentiment:"mixed",emoji:"🤡"},
+      {headline:"Trump Threatens 'Fire and Fury' on Iran, Then Invites Khamenei to Mar-a-Lago",source:"CNN",delta:()=>Math.round((Math.random()-0.5)*5),sentiment:"mixed",emoji:"🏌️",flavor:"Peak TACO. Escalate Monday, golf Tuesday, de-escalate Wednesday."},
+      {headline:"Saudi Crown Prince Buys Another Soccer Club — Markets Shrug",source:"Sky Sports",delta:()=>Math.round((Math.random()-0.5)*2),sentiment:"mixed",emoji:"⚽"},
+    ];
+    const rollNews=()=>{
+      const used=newsHistory.map(n=>n.headline);
+      const available=NEWS_POOL.filter(n=>!used.includes(n.headline));
+      const pick=available[Math.floor(Math.random()*available.length)]||NEWS_POOL[0];
+      const d=pick.delta();
+      const newPrice=Math.max(Math.round(basePrice*0.5),curPrice+d);
+      setFinalSellPrice(newPrice);
+      setNewsHistory(h=>[...h,{...pick,priceChange:d,newPrice}]);
+    };
+    const sellNow=()=>{
+      setFinalSellPrice(curPrice);
+      saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:totalBbl*curPrice-pCost-equipCost-fCost-repairCosts,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
+      setPhase("endscreen");
+    };
+    const margin=curPrice-(od?.price||70);
+    const estProfit=totalBbl*curPrice-pCost-equipCost-fCost-repairCosts;
+    return(<div style={wrap}><div style={{maxWidth:560,margin:"0 auto"}}>
+      <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>📈 OIL TRADING DESK</h2>
+      <p style={{color:S.dim,textAlign:"center",fontSize:13,marginBottom:14}}>Your tanker has docked. Time to sell {totalBbl.toLocaleString()} barrels of {od?.oilType||"crude"}.</p>
+      {/* Price ticker */}
+      <div style={{...card,textAlign:"center",padding:16}}>
+        <div style={{fontSize:11,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Current Market Price</div>
+        <div style={{fontSize:36,fontWeight:"bold",color:curPrice>=basePrice?S.green:S.red,fontFamily:"monospace"}}>${curPrice}/bbl</div>
+        <div style={{fontSize:12,color:S.dim}}>
+          Base: ${basePrice}/bbl
+          {curPrice!==basePrice&&<span style={{color:curPrice>basePrice?S.green:S.red,marginLeft:8}}>
+            ({curPrice>basePrice?"+":""}${curPrice-basePrice})
+          </span>}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-around",marginTop:12,fontSize:13}}>
+          <div><div style={{color:S.dim,fontSize:10}}>MARGIN</div><div style={{color:margin>0?S.green:S.red,fontWeight:"bold"}}>${margin}/bbl</div></div>
+          <div><div style={{color:S.dim,fontSize:10}}>EST. PROFIT</div><div style={{color:estProfit>0?S.green:S.red,fontWeight:"bold"}}>${(estProfit/1e6).toFixed(2)}M</div></div>
+          <div><div style={{color:S.dim,fontSize:10}}>WAITS LEFT</div><div style={{color:waitsLeft>0?S.accent:S.red,fontWeight:"bold"}}>{waitsLeft}</div></div>
+        </div>
+      </div>
+      {/* News feed */}
+      {newsHistory.length>0&&<div style={{...card,padding:12}}>
+        <div style={{fontSize:11,color:S.dim,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>News Feed</div>
+        {newsHistory.map((n,i)=><div key={i} style={{padding:"8px 0",borderBottom:i<newsHistory.length-1?"1px solid "+S.border:"none"}}>
+          <div style={{fontSize:14,fontWeight:"bold",color:S.text}}>{n.emoji} {n.headline}</div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:3}}>
+            <span style={{fontSize:11,color:S.dim,fontStyle:"italic"}}>{n.source}</span>
+            <span style={{fontSize:13,fontWeight:"bold",color:n.priceChange>0?S.green:n.priceChange<0?S.red:S.dim}}>
+              {n.priceChange>0?"+":""}{n.priceChange>0?"$"+n.priceChange:n.priceChange<0?"-$"+Math.abs(n.priceChange):"$0"}
+            </span>
+          </div>
+          {n.flavor&&<div style={{fontSize:11,color:"#8a7a5a",fontStyle:"italic",marginTop:4}}>💡 {n.flavor}</div>}
+        </div>)}
+      </div>}
+      {/* Actions */}
+      <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:14,flexWrap:"wrap"}}>
+        <button onClick={sellNow} style={{...btn(S.green),fontSize:15,padding:"12px 28px"}}>💰 SELL NOW @ ${curPrice}</button>
+        {waitsLeft>0&&<button onClick={rollNews} style={{...btn("#3a5070"),fontSize:15,padding:"12px 28px"}}>📰 WAIT FOR NEWS ({waitsLeft})</button>}
+      </div>
+      {waitsLeft===0&&newsHistory.length>0&&<p style={{textAlign:"center",color:S.dim,fontSize:12,marginTop:8}}>No more news cycles. Sell now or hold forever (not recommended).</p>}
+    </div></div>);
+  }
 
   if(phase==="endscreen"){
     const grade=gameOver?"F":cargo>0.9?"S":cargo>0.75?"A":cargo>0.5?"B":cargo>0.3?"C":"F";
@@ -2223,7 +2321,7 @@ function Game(){
           <div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid "+S.border,paddingTop:4,fontWeight:"bold"}}><span>Delivered</span><span style={{color:S.green}}>{totalBbl.toLocaleString()} bbl</span></div>
           <div style={{borderTop:"1px solid "+S.border,marginTop:6,paddingTop:6}}>
             <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:S.dim}}>Purchase @${od?.price}</span><span style={{color:S.red}}>-${(pCost/1e6).toFixed(2)}M</span></div>
-            <div style={{display:"flex",justifyContent:"space-between"}}><span>Delivery @${od?.sellPrice}</span><span style={{color:S.green}}>${(rev/1e6).toFixed(2)}M</span></div>
+            <div style={{display:"flex",justifyContent:"space-between"}}><span>Delivery @${actSellPrice}{finalSellPrice&&finalSellPrice!==od?.sellPrice?" (market)":""}</span><span style={{color:S.green}}>${(rev/1e6).toFixed(2)}M</span></div>
             <div style={{display:"flex",justifyContent:"space-between"}}><span>Equipment</span><span style={{color:S.red}}>-${(equipCost/1e6).toFixed(2)}M</span></div>
             <div style={{display:"flex",justifyContent:"space-between"}}><span>Fuel</span><span style={{color:S.red}}>-${(fCost/1e6).toFixed(2)}M</span></div>
             {repairCosts>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span>Repairs</span><span style={{color:S.red}}>-${(repairCosts/1e6).toFixed(2)}M</span></div>}
