@@ -34,11 +34,11 @@ const ORIGINS=[
 ];
 // Routes from each origin converge toward the strait exit
 const ROUTES={
-  ras_tanura:[{x:20,y:38},{x:24,y:36},{x:30,y:35},{x:35,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
-  juaymah:[{x:18,y:36},{x:23,y:35},{x:29,y:35},{x:35,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
-  basra:[{x:10,y:16},{x:13,y:21},{x:16,y:26},{x:19,y:31},{x:24,y:35},{x:33,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
-  kharg:[{x:21,y:17},{x:22,y:24},{x:25,y:31},{x:30,y:35},{x:40,y:35},{x:47,y:35},{x:54,y:37},{x:60,y:42},{x:65,y:48},{x:68,y:54}],
-  bandar:[{x:53,y:35},{x:56,y:37},{x:59,y:40},{x:62,y:44},{x:65,y:48},{x:68,y:54}],
+  ras_tanura:[{x:20,y:38},{x:23,y:37},{x:26,y:37},{x:28,y:38},{x:30,y:41},{x:32,y:44},{x:35,y:46},{x:39,y:47},{x:44,y:47},{x:48,y:45},{x:51,y:42},{x:53,y:39},{x:54,y:37},{x:56,y:36},{x:57,y:37},{x:57,y:39},{x:57,y:42},{x:57,y:44},{x:58,y:47},{x:62,y:49},{x:65,y:51},{x:70,y:53},{x:75,y:55},{x:79,y:57},{x:82,y:61}],
+  juaymah:[{x:18,y:36},{x:22,y:36},{x:26,y:37},{x:28,y:38},{x:30,y:41},{x:32,y:44},{x:35,y:46},{x:39,y:47},{x:44,y:47},{x:48,y:45},{x:51,y:42},{x:53,y:39},{x:54,y:37},{x:56,y:36},{x:57,y:37},{x:57,y:39},{x:57,y:42},{x:57,y:44},{x:58,y:47},{x:62,y:49},{x:65,y:51},{x:70,y:53},{x:75,y:55},{x:79,y:57},{x:82,y:61}],
+  basra:[{x:10,y:16},{x:13,y:21},{x:17,y:27},{x:20,y:32},{x:23,y:35},{x:26,y:37},{x:28,y:38},{x:30,y:41},{x:32,y:44},{x:35,y:46},{x:39,y:47},{x:44,y:47},{x:48,y:45},{x:51,y:42},{x:53,y:39},{x:54,y:37},{x:56,y:36},{x:57,y:37},{x:57,y:39},{x:57,y:42},{x:57,y:44},{x:58,y:47},{x:62,y:49},{x:65,y:51},{x:70,y:53},{x:75,y:55},{x:79,y:57},{x:82,y:61}],
+  kharg:[{x:21,y:17},{x:21,y:23},{x:22,y:29},{x:24,y:34},{x:26,y:37},{x:28,y:38},{x:30,y:41},{x:32,y:44},{x:35,y:46},{x:39,y:47},{x:44,y:47},{x:48,y:45},{x:51,y:42},{x:53,y:39},{x:54,y:37},{x:56,y:36},{x:57,y:37},{x:57,y:39},{x:57,y:42},{x:57,y:44},{x:58,y:47},{x:62,y:49},{x:65,y:51},{x:70,y:53},{x:75,y:55},{x:79,y:57},{x:82,y:61}],
+  bandar:[{x:53,y:35},{x:54,y:37},{x:56,y:36},{x:57,y:37},{x:57,y:39},{x:57,y:42},{x:57,y:44},{x:58,y:47},{x:62,y:49},{x:65,y:51},{x:70,y:53},{x:75,y:55},{x:79,y:57},{x:82,y:61}],
 };
 const EQUIPMENT=[
   {id:"ciws",name:"CIWS Phalanx",cost:450000,icon:"🔫",desc:"20mm autocannon",effects:"Auto-shoots diving drones. IRGC boats 40% slower."},
@@ -1995,11 +1995,38 @@ function Game(){
   }
 
   // ── DEBUG MAP VIEW ──
-  if(phase==="debug_map")return(<div style={wrap}><div style={{maxWidth:600,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
-    <h2 style={{fontFamily:S.titleFont,color:S.accent,fontSize:19,marginBottom:8}}>MAP VIEW</h2>
-    <GameMap originId={null} progress={null} events={null} eventIdx={0} mode="view"/>
-    <button onClick={()=>setPhase("title")} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px",marginTop:12}}>← BACK</button>
-  </div></div>);
+  if(phase==="debug_map"){
+    const svgClick=(e)=>{
+      const svg=e.currentTarget;const rect=svg.getBoundingClientRect();
+      const vb=svg.viewBox.baseVal;
+      const x=((e.clientX-rect.left)/rect.width)*vb.width;
+      const y=((e.clientY-rect.top)/rect.height)*vb.height;
+      const rx=Math.round(x);const ry=Math.round(y);
+      // Add dot
+      const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      c.setAttribute("cx",rx);c.setAttribute("cy",ry);c.setAttribute("r","1");c.setAttribute("fill","#ff0000");
+      svg.appendChild(c);
+      const t=document.createElementNS("http://www.w3.org/2000/svg","text");
+      t.setAttribute("x",rx);t.setAttribute("y",ry-2);t.setAttribute("fill","#ff0000");
+      t.setAttribute("font-size","2");t.setAttribute("text-anchor","middle");
+      t.textContent=rx+","+ry;svg.appendChild(t);
+      // Log to console
+      if(!window._routePts)window._routePts=[];
+      window._routePts.push({x:rx,y:ry});
+      console.log("ROUTE POINT:",JSON.stringify({x:rx,y:ry}),"| ALL:",JSON.stringify(window._routePts));
+    };
+    return(<div style={wrap}><div style={{maxWidth:600,margin:"0 auto",width:"100%",flex:1,display:"flex",flexDirection:"column",minHeight:0,textAlign:"center"}}>
+      <h2 style={{fontFamily:S.titleFont,color:S.accent,fontSize:19,marginBottom:8}}>MAP — CLICK TO PLOT ROUTE</h2>
+      <p style={{color:S.dim,fontSize:11,marginBottom:6}}>Click points on the map. Coordinates logged to browser console (F12).</p>
+      <svg viewBox="0 0 100 80" onClick={svgClick} style={{width:"100%",flex:1,display:"block",margin:"0 auto",borderRadius:10,border:"1px solid "+S.border,background:"url('map-bg.png') center/contain no-repeat, #081020",cursor:"crosshair"}}>
+        {ORIGINS.map(o=><g key={o.id}><circle cx={o.mapX} cy={o.mapY} r="1" fill="#fff" stroke={o.color} strokeWidth="0.3" opacity="0.5"/><text x={o.mapX} y={o.mapY-3} fill="#8899aa" fontSize="1.6" textAnchor="middle" fontFamily="monospace">{o.name}</text></g>)}
+      </svg>
+      <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:12}}>
+        <button onClick={()=>{window._routePts=[];setPhase("debug_map")}} style={{...btn("#e74c3c",false),fontSize:12,padding:"8px 20px"}}>CLEAR</button>
+        <button onClick={()=>setPhase("title")} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px"}}>← BACK</button>
+      </div>
+    </div></div>);
+  }
 
   // ── TEST MINIGAMES MENU ──
   if(phase==="test_menu"){
