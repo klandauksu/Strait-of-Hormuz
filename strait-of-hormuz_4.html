@@ -47,6 +47,7 @@ const EQUIPMENT=[
   {id:"escort",name:"Armed Escort",cost:950000,icon:"🚤",desc:"Security boat",effects:"Deters IRGC boats. Bribe -10."},
   {id:"jammer",name:"EW Jammer",cost:380000,icon:"📡",desc:"Electronic warfare",effects:"Missiles 30% slower. 2 drones jammed."},
   {id:"medic",name:"Medic",cost:150000,icon:"🏥",desc:"Combat medics",effects:"Survive fatal encounter (60% cargo loss)."},
+  {id:"interpreter",name:"Interpreter",cost:200000,icon:"🗣️",desc:"Farsi translator",effects:"75% chance to read IRGC commander's next move."},
 ];
 const CONSUMABLES=[
   {id:"flares",name:"IR Flares",cost:25000,icon:"🎆",max:10,desc:"Decoy flare",effects:"Deflect incoming missiles. Press F or double-tap to deploy."},
@@ -65,11 +66,11 @@ const EVENTS=[
   {id:"mines",name:"MINEFIELD",emoji:"💣",probability:0.7,miniGame:"mines",desc:"Mines in the water!",inst:"Steer through. 30 seconds. Ship size = bigger hitbox.",ctrl:"Arrows/WASD/Touch"},
   {id:"drones",name:"DRONE SWARM",emoji:"🛩️",probability:0.75,miniGame:"drones",desc:"Shahed UAVs inbound!",inst:"Drones loiter then kamikaze dive. Tap to shoot them down before they hit. CIWS auto-engages divers.",ctrl:"Tap/Click"},
   {id:"pirates",name:"IRGC FAST BOATS",emoji:"🇮🇷",probability:0.6,miniGame:"pirates",desc:"IRGC attack boats closing fast!",inst:"Evade IRGC fast boats pursuing you. Bigger ship = easier to catch.",ctrl:"Arrows/WASD/Touch"},
-  {id:"irgc",name:"IRGC PATROL",emoji:"🇮🇷",probability:0.75,miniGame:"negotiate",desc:"IRGC demands inspection.",inst:"Negotiate with the IRGC commander. Read his tells, choose your tactics.",ctrl:"Tap/Click"},
+  {id:"irgc",name:"IRGC PATROL",emoji:"🇮🇷",probability:0.75,miniGame:"negotiate",desc:"IRGC demands inspection.",inst:"Face off against the IRGC commander in a battle of wits. Best of 3 rounds.",ctrl:"Tap/Click"},
   {id:"sandstorm",name:"SHAMAL",emoji:"🌪️",probability:0.5,miniGame:"sandstorm",desc:"Shamal dust storm — zero visibility!",inst:"Navigate to the exit beacon through the storm. Avoid obstacles you can barely see. Ship size = harder to squeeze through.",ctrl:"Arrows/WASD/Touch"},
   {id:"missile",name:"ANTI-SHIP MISSILE",emoji:"🚀",probability:0.55,miniGame:"missile",desc:"Houthi cruise missile!",inst:"Dodge homing missiles. Bigger ship = bigger target.",ctrl:"Left/Right/Touch"},
   {id:"navy",name:"US NAVY HAIL",emoji:"🇺🇸",probability:0.7,miniGame:"radio",desc:"Destroyer demands ID.",inst:"Track the moving frequency target and hold lock for 3s.",ctrl:"Slider"},
-  {id:"smuggler",name:"SMUGGLER",emoji:"🤫",probability:0.45,miniGame:"negotiate",desc:"Dhow offers off-books deal.",inst:"Negotiate with the smuggler. Choose your tactics carefully.",ctrl:"Tap/Click"},
+  {id:"smuggler",name:"SMUGGLER",emoji:"🤫",probability:0.45,miniGame:"negotiate",desc:"Dhow offers off-books deal.",inst:"Outwit the smuggler — best of 3 rounds. Interpreter gives hints.",ctrl:"Tap/Click"},
 ];
 
 // ══════════ UTILITIES ══════════
@@ -1496,251 +1497,181 @@ function RadioScanGame({onComplete,shipName,isSanctioned}){
 
 // ══════════ NEGOTIATION (2 per game limit enforced in main) ══════════
 function NegotiationGame({onComplete,equip,onFatalFail,currentCargoPercent}){
-  const hasE=equip.includes("escort"),hasM=equip.includes("medic");
-  // Commander personality — hidden, affects how tactics work
+  const hasInterp=equip.includes("interpreter"),hasE=equip.includes("escort"),hasM=equip.includes("medic");
+  const MOVES=["rock","paper","scissors"];
+  const ICONS={rock:"✊",paper:"✋",scissors:"✌️"};
+  const BEATS={rock:"scissors",paper:"rock",scissors:"paper"};
+  const LABELS={rock:"Force",paper:"Diplomacy",scissors:"Deception"};
+  const COLORS={rock:S.red,paper:S.green,scissors:"#9b59b6"};
   const[commander]=useState(()=>{
-    const types=["greedy","aggressive","cautious"];
-    const type=types[Math.floor(Math.random()*3)];
     const names=["Cpt. Rostami","Cdr. Jalili","Lt. Mohammadi","Cdr. Salehi","Cpt. Rezaei"];
-    const name=names[Math.floor(Math.random()*names.length)];
-    const portraits={greedy:"🤑",aggressive:"😠",cautious:"🧐"};
-    return{type,name,portrait:portraits[type],baseDemand:15+Math.random()*35};
+    return{name:names[Math.floor(Math.random()*names.length)],portrait:"😠"};
   });
-  const[round,setRound]=useState(0);// 0=intro, 1-4=rounds, 5=outcome
-  const[tension,setTension]=useState(25+Math.random()*15);
-  const[totalBribe,setTotalBribe]=useState(0);
-  const[dialogue,setDialogue]=useState([]);
-  const[phase,setPhase]=useState("typing");// typing, waiting, choose, response, outcome
+  const[round,setRound]=useState(0);// 0=intro
+  const[maxRounds]=useState(3);
+  const[wins,setWins]=useState(0);
+  const[losses,setLosses]=useState(0);
+  const[phase,setPhase]=useState("intro");// intro, hint, choose, reveal, outcome
+  const[cmdMove,setCmdMove]=useState(null);
+  const[playerMove,setPlayerMove]=useState(null);
+  const[hint,setHint]=useState(null);
+  const[roundResult,setRoundResult]=useState(null);
+  const[finalResult,setFinalResult]=useState(null);
   const[typedText,setTypedText]=useState("");
-  const[choiceMade,setChoiceMade]=useState(null);
-  const[timeLeft,setTimeLeft]=useState(0);
-  const[timerActive,setTimerActive]=useState(false);
-  const[result,setResult]=useState(null);
-  const timerRef=useRef(null);const typeRef=useRef(null);
-  const pendingRef=useRef(null);// stores what "Next" button should do
-  // Commander dialogue per round
-  const getCommanderLine=(rnd,tens)=>{
-    const t=commander.type;
-    const lines={
-      1:{greedy:["Your ship is carrying valuable cargo, yes? Standard inspection fee applies...","We know what you're carrying. The question is what it's worth to you.","This is a busy waterway. Passage has a... cost."],
-         aggressive:["Stop your engines. You are in Iranian waters.","Your vessel is under investigation. Cooperate or face consequences.","You have 60 seconds to comply with our boarding request."],
-         cautious:["Routine inspection. We need to verify your cargo manifest.","Your transponder readings are... irregular. We need clarification.","We've received intelligence about suspicious vessels in this area."]},
-      2:{greedy:[tens>50?"Your offer insults me. We both know the cargo is worth far more.":"Interesting. But I think we can come to a better arrangement.",
-                tens>50?"Perhaps you don't understand the situation. Let me be clearer about the cost.":"My superiors expect a certain... consideration for safe passage."],
-         aggressive:[tens>50?"Your stalling is testing my patience. My gunboat crew is getting restless.":"I'm being reasonable. Don't make me reconsider.",
-                    tens>50?"I have authorization to use force. Choose wisely.":"My orders are clear. One way or another, this ends now."],
-         cautious:[tens>50?"Your documents don't add up. This is becoming a serious matter.":"I want to resolve this peacefully. Help me help you.",
-                  tens>50?"The irregularities are mounting. I may need to call in reinforcements.":"Let's not escalate this. I'm sure there's an explanation."]},
-      3:{greedy:[tens>60?"LAST CHANCE. Pay or we board.":"You're a reasonable captain. Let's close this deal.",
-                tens>60?"My crew needs compensation for this delay. The price just went up.":"I respect a shrewd negotiator. One more gesture of goodwill?"],
-         aggressive:[tens>60?"WEAPONS HOT. I will not ask again.":"Stand down and comply. Final warning.",
-                    tens>60?"Boarding team is ready. You have seconds.":"I'm giving you one last chance to cooperate."],
-         cautious:[tens>60?"This has gone on too long. I'm calling for backup.":"I believe we can still resolve this diplomatically.",
-                  tens>60?"My patience is wearing thin. The evidence is concerning.":"I don't want this to end badly for either of us."]},
-      4:{greedy:["This is your FINAL opportunity. Make it count.","The price of freedom. What's it worth to you?"],
-         aggressive:["Weapons are locked. Speak now.","Last words before I give the order?"],
-         cautious:["One last chance to explain yourself.","I need a reason not to board your vessel."]}
-    };
-    const pool=lines[rnd]?.[t]||["..."];
-    return pool[Math.floor(Math.random()*pool.length)];
-  };
-  // Tells — visual hints about commander type
-  const getTell=()=>{
-    const t=commander.type;
-    if(t==="greedy")return{hint:"👀 eyes keep glancing at cargo hold",color:S.accent};
-    if(t==="aggressive")return{hint:"✊ gripping sidearm, jaw clenched",color:S.red};
-    return{hint:"📋 studying documents carefully",color:S.blue};
-  };
-  // Tactics available each round
-  const getTactics=(rnd)=>{
-    const base=[
-      {id:"diplomacy",icon:"🤝",name:"Diplomacy",desc:"Appeal to reason",color:S.green},
-      {id:"bribe",icon:"💰",name:"Bribe",desc:"Offer cargo (~8-15%)",color:S.accent},
-      {id:"bluff",icon:"🎭",name:"Bluff",desc:"Risky deception",color:"#9b59b6"},
-    ];
-    if(hasE||rnd>=3)base.push({id:"intimidate",icon:"💪",name:"Intimidate",desc:hasE?"Escort shows force":"Stand your ground",color:S.red});
-    if(rnd<=2)base.push({id:"stall",icon:"⏳",name:"Stall",desc:"Buy time, read them",color:S.dim});
-    return base;
-  };
-  // Resolve a tactic choice
-  const resolveTactic=(tacticId)=>{
-    const t=commander.type;let dT=0,bribe=0,resp="";
-    const effective=(base,bonus)=>base+(bonus?bonus:0);
-    if(tacticId==="diplomacy"){
-      if(t==="cautious"){dT=-18;resp="Your appeal to protocol seems to resonate. He considers your words.";}
-      else if(t==="greedy"){dT=-6;resp="He listens politely but his eyes keep drifting to your hold.";}
-      else{dT=5;resp="He scoffs at diplomacy. 'We are past words, Captain.'";}
-    }else if(tacticId==="bribe"){
-      bribe=8+Math.floor(Math.random()*8);
-      if(t==="greedy"){dT=-25;resp="His eyes light up. 'A generous captain. Perhaps we can overlook certain irregularities...'";}
-      else if(t==="cautious"){dT=-12;resp="He pockets the offer discreetly. 'I suppose the paperwork can wait...'";}
-      else{dT=Math.random()>0.5?-8:10;resp=dT<0?"He grudgingly accepts. 'This doesn't change anything. But... proceed.'":"'You think you can BUY the Revolutionary Guard?!' He's insulted.";}
-    }else if(tacticId==="bluff"){
-      const luck=Math.random();
-      if(t==="cautious"&&luck>0.3){dT=-20;resp="You claim diplomatic immunity and flash credentials. He hesitates, uncertain.";}
-      else if(t==="greedy"&&luck>0.5){dT=-15;resp="You mention a 'friend' in Tehran. His demeanor shifts — he doesn't want trouble.";}
-      else if(t==="aggressive"&&luck>0.6){dT=-12;resp="Your bold bluff catches him off guard. For a moment, he's unsure.";}
-      else{dT=15+Math.floor(Math.random()*10);resp="He sees through your deception. 'Do you take me for a fool?!' Tension spikes.";}
-    }else if(tacticId==="intimidate"){
-      const power=hasE?0.8:0.3;
-      if(t==="cautious"){dT=hasE?-20:-5;resp=hasE?"Your armed escort moves into flanking position. The commander radios nervously.":"You puff up, but he's seen scarier.";}
-      else if(t==="aggressive"){dT=hasE?-10:15;resp=hasE?"He eyes your escort warily. 'Your protection won't last forever...'":"'You DARE threaten me?!' He signals his gunboat.";}
-      else{dT=hasE?-8:12;resp=hasE?"The escort makes him reconsider the cost-benefit. He's greedy, not stupid.":"Without backup, your bluster rings hollow. He smirks.";}
-    }else if(tacticId==="stall"){
-      dT=3+Math.floor(Math.random()*5);
-      const tells=[
-        t==="greedy"?"As you stall, you notice him eyeing the cargo manifest hungrily.":
-        t==="aggressive"?"His hand rests on his holster. This man doesn't bluff.":
-        "He re-reads your documents methodically. A careful man."];
-      resp=tells[0]+" (You study his behavior...)";
-    }
-    return{dT,bribe,resp};
+  const typeRef=useRef(null);const timerRef=useRef(null);
+  const taunts=["You think you can outsmart the Revolutionary Guard?","Your papers are suspicious, Captain.","Let's settle this the old way.","I've seen through cleverer captains than you.","This won't go the way you think."];
+  const winLines=["Lucky. But luck runs out.","Hmph. You won't be so fortunate next time.","A minor setback."];
+  const loseLines=["As expected. You're outmatched.","The Guard always wins.","Pathetic attempt, Captain."];
+  const tieLines=["Evenly matched... for now.","A stalemate. Again.","We think alike. Dangerous."];
+  const typeText=(text,cb)=>{
+    let i=0;setTypedText("");
+    clearInterval(typeRef.current);
+    typeRef.current=setInterval(()=>{i++;setTypedText(text.slice(0,i));if(i>=text.length){clearInterval(typeRef.current);if(cb)cb()}},25);
   };
   // Start intro
   useEffect(()=>{
-    const introLine="⚡ IRGC PATROL — "+commander.name+" hails your vessel.";
-    let i=0;setTypedText("");setPhase("typing");
-    typeRef.current=setInterval(()=>{i++;setTypedText(introLine.slice(0,i));if(i>=introLine.length){clearInterval(typeRef.current);pendingRef.current=()=>{setRound(1);startRound(1)};setPhase("waiting")}},30);
+    const line="⚡ "+commander.name+" blocks your path. \""+taunts[Math.floor(Math.random()*taunts.length)]+"\"";
+    typeText(line,()=>setPhase("ready"));
     return()=>{clearInterval(typeRef.current);clearTimeout(timerRef.current)};
   },[]);
-  const startRound=(rnd)=>{
-    const line=getCommanderLine(rnd,tension);
-    let i=0;setTypedText("");setPhase("typing");setChoiceMade(null);
-    typeRef.current=setInterval(()=>{i++;setTypedText(line.slice(0,i));if(i>=line.length){clearInterval(typeRef.current);setPhase("choose");setTimeLeft(12);setTimerActive(true)}},25);
-  };
-  // Countdown timer for choices
-  useEffect(()=>{
-    if(!timerActive||phase!=="choose")return;
-    if(timeLeft<=0){handleTactic("stall");return}
-    const t=setTimeout(()=>setTimeLeft(p=>p-1),1000);
-    return()=>clearTimeout(t);
-  },[timeLeft,timerActive,phase]);
-  const handleNext=()=>{if(pendingRef.current){const fn=pendingRef.current;pendingRef.current=null;fn()}};
-  const handleTactic=(tacticId)=>{
-    if(phase!=="choose")return;
-    setTimerActive(false);setPhase("response");setChoiceMade(tacticId);
-    const{dT,bribe,resp}=resolveTactic(tacticId);
-    const newTension=Math.max(0,Math.min(100,tension+dT));
-    const newBribe=totalBribe+bribe;
-    setTension(newTension);setTotalBribe(newBribe);
-    setDialogue(d=>[...d,{who:"player",tactic:tacticId},{who:"narrator",text:resp}]);
-    setTypedText("");
-    let i=0;
-    typeRef.current=setInterval(()=>{i++;setTypedText(resp.slice(0,i));if(i>=resp.length){clearInterval(typeRef.current);
-      // Set pending action for Next button
-      if(newTension>=95||round>=4||newTension<=5){
-        pendingRef.current=()=>resolveGame(newTension,newBribe);
-      }else{
-        pendingRef.current=()=>{const nr=round+1;setRound(nr);startRound(nr)};
-      }
-      setPhase("waiting");
-    }},20);
-  };
-  const resolveGame=(finalTension,finalBribe)=>{
-    clearInterval(typeRef.current);setPhase("outcome");
-    let out;
-    const bribePct=finalBribe/100;
-    if(finalTension>=90){
-      // Violent boarding
-      if(hasM){out={success:false,cargoLoss:0.6,hullDmg:35,fatal:false,emoji:"💀",title:"BOARDED — MEDIC SAVES CREW",
-        msg:"Tension too high! They board violently. Your medic prevents casualties but "+Math.round(60)+"% cargo seized.",color:S.red};}
-      else{out={success:false,cargoLoss:1,hullDmg:50,fatal:true,emoji:"💀",title:"VESSEL SEIZED",
-        msg:"The commander's patience ran out. Gunboat opens fire. All cargo lost.",color:S.red};}
-    }else if(finalTension<=20){
-      // Clean getaway
-      out={success:true,cargoLoss:Math.min(bribePct,0.15),hullDmg:0,fatal:false,emoji:"🕊️",title:"PASSAGE GRANTED",
-        msg:"You handled "+commander.name+" masterfully. "+(finalBribe>0?"Bribes totaled ~"+finalBribe+"% cargo.":"No bribes needed!"),color:S.green};
-    }else if(finalTension<=50){
-      // Tense but OK — some cargo loss
-      const seizure=Math.max(bribePct,0.05+finalTension*0.002);
-      out={success:true,cargoLoss:Math.min(seizure,0.3),hullDmg:5,fatal:false,emoji:"🤝",title:"GRUDGING RELEASE",
-        msg:commander.name+" lets you pass, but not before 'inspecting' ~"+Math.round(seizure*100)+"% of cargo.",color:S.accent};
+  const startRound=()=>{
+    const rnd=round+1;setRound(rnd);setPlayerMove(null);setCmdMove(null);setRoundResult(null);setHint(null);
+    const cm=MOVES[Math.floor(Math.random()*3)];
+    setCmdMove(cm);
+    if(hasInterp){
+      // 75% correct hint, 25% wrong
+      const correct=Math.random()<0.75;
+      const hintMove=correct?cm:MOVES.filter(m=>m!==cm)[Math.floor(Math.random()*2)];
+      setHint(hintMove);
+      typeText("🗣️ Interpreter whispers: \"I think he'll play "+LABELS[hintMove]+" "+ICONS[hintMove]+"...\"",()=>setPhase("choose"));
     }else{
-      // High tension — significant loss
-      const seizure=Math.max(bribePct+0.1,0.15+finalTension*0.004);
-      out={success:false,cargoLoss:Math.min(seizure,0.5),hullDmg:20,fatal:false,emoji:"😡",title:"FORCED INSPECTION",
-        msg:"At gunpoint, they seize ~"+Math.round(Math.min(seizure,0.5)*100)+"% of cargo. "+commander.name+" warns you not to return.",color:S.red};
+      typeText("Round "+rnd+" of "+maxRounds+" — Choose your move!",()=>setPhase("choose"));
     }
-    setResult(out);
+  };
+  const handleChoice=(move)=>{
+    if(phase!=="choose")return;
+    setPlayerMove(move);setPhase("reveal");
+    const cm=cmdMove;
+    let res;
+    if(move===cm)res="tie";
+    else if(BEATS[move]===cm)res="win";
+    else res="lose";
+    setRoundResult(res);
+    const newWins=wins+(res==="win"?1:0);
+    const newLosses=losses+(res==="lose"?1:0);
+    setWins(newWins);setLosses(newLosses);
+    const line=res==="win"?winLines[Math.floor(Math.random()*winLines.length)]:
+               res==="lose"?loseLines[Math.floor(Math.random()*loseLines.length)]:
+               tieLines[Math.floor(Math.random()*tieLines.length)];
+    typeText(commander.name+": \""+line+"\"",()=>{
+      // Check if game over (round already incremented by startRound)
+      if(round>=maxRounds||newWins>=2||newLosses>=2){
+        timerRef.current=setTimeout(()=>resolveGame(newWins,newLosses),1500);
+      }else{
+        setPhase("next");
+      }
+    });
+  };
+  const resolveGame=(w,l)=>{
+    setPhase("outcome");
+    let out;
+    if(w>l){
+      out={success:true,cargoLoss:0,hullDmg:0,fatal:false,emoji:"🕊️",title:"PASSAGE GRANTED",
+        msg:commander.name+" grudgingly waves you through. \"Go. Before I change my mind.\"",color:S.green};
+    }else if(w===l){
+      const seizure=0.1+Math.random()*0.1;
+      out={success:true,cargoLoss:seizure,hullDmg:5,fatal:false,emoji:"🤝",title:"GRUDGING RELEASE",
+        msg:"A draw. "+commander.name+" 'inspects' ~"+Math.round(seizure*100)+"% of cargo before letting you pass.",color:S.accent};
+    }else{
+      // Player lost
+      if(hasM){
+        out={success:false,cargoLoss:0.6,hullDmg:35,fatal:false,emoji:"💀",title:"BOARDED — MEDIC SAVES CREW",
+          msg:commander.name+" orders boarding. Your medic prevents casualties but 60% cargo seized.",color:S.red};
+      }else{
+        out={success:false,cargoLoss:1,hullDmg:50,fatal:true,emoji:"💀",title:"VESSEL SEIZED",
+          msg:commander.name+" signals the gunboat. All cargo confiscated. Crew detained.",color:S.red};
+      }
+    }
+    setFinalResult(out);
     timerRef.current=setTimeout(()=>{
       if(out.fatal)onFatalFail();
       else onComplete({success:out.success,hullDmg:out.hullDmg,cargoLoss:out.cargoLoss,repairCost:0,msg:out.msg});
     },3500);
   };
-  const tell=getTell();
-  const tensionColor=tension<30?S.green:tension<60?S.accent:tension<80?"#e67e22":S.red;
-  const tensionLabel=tension<20?"Calm":tension<40?"Wary":tension<60?"Tense":tension<80?"Hostile":"Critical";
-  return(<div style={{...card,borderColor:tensionColor+"44",position:"relative",overflow:"hidden"}}>
-    {/* Header */}
-    <div style={{textAlign:"center",color:S.accent,fontWeight:"bold",fontSize:18,marginBottom:6}}>⚓ IRGC SHAKEDOWN</div>
-    {/* Commander portrait + info */}
+  const scoreColor=(w,l)=>w>l?S.green:w===l?S.accent:S.red;
+  return(<div style={{...card,borderColor:S.accent+"44",position:"relative",overflow:"hidden"}}>
+    <div style={{textAlign:"center",color:S.accent,fontWeight:"bold",fontSize:18,marginBottom:6}}>⚓ IRGC STANDOFF</div>
+    {/* Commander + score */}
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8,padding:"8px 12px",background:"rgba(255,255,255,0.03)",borderRadius:8}}>
-      <div style={{fontSize:40,lineHeight:1,filter:phase==="typing"?"brightness(0.8)":"none",transition:"filter 0.3s"}}>{commander.portrait}</div>
+      <div style={{fontSize:40,lineHeight:1}}>{commander.portrait}</div>
       <div style={{flex:1}}>
         <div style={{fontSize:14,fontWeight:"bold",color:S.text}}>{commander.name}</div>
         <div style={{fontSize:11,color:S.dim}}>IRGC Naval Patrol</div>
-        {round>0&&<div style={{fontSize:10,color:tell.color,fontStyle:"italic",marginTop:2}}>{tell.hint}</div>}
       </div>
       {round>0&&<div style={{textAlign:"right"}}>
-        <div style={{fontSize:10,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Round {Math.min(round,4)}/4</div>
+        <div style={{fontSize:10,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Round {Math.min(round,maxRounds)}/{maxRounds}</div>
+        <div style={{fontSize:14,fontWeight:"bold",color:scoreColor(wins,losses)}}>{wins} — {losses}</div>
       </div>}
     </div>
-    {/* Tension meter */}
-    <div style={{marginBottom:10}}>
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}>
-        <span style={{color:S.dim}}>TENSION</span>
-        <span style={{color:tensionColor,fontWeight:"bold"}}>{tensionLabel} ({Math.round(tension)}%)</span>
-      </div>
-      <div style={{height:8,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden",position:"relative"}}>
-        <div style={{width:Math.min(tension,100)+"%",height:"100%",background:`linear-gradient(90deg,${S.green},${S.accent},${S.red})`,borderRadius:4,transition:"width 0.5s ease",position:"relative"}}>
-          {tension>70&&<div style={{position:"absolute",right:0,top:0,bottom:0,width:20,background:"rgba(255,255,255,0.3)",animation:"pulse 0.8s infinite alternate"}}/>}
-        </div>
+    {/* Dialogue */}
+    <div style={{minHeight:60,padding:"10px 12px",background:"rgba(0,0,0,0.2)",borderRadius:8,marginBottom:10,border:"1px solid rgba(255,255,255,0.05)"}}>
+      <div style={{fontSize:13,color:S.text,lineHeight:1.6}}>
+        <span style={{color:S.accent}}>📻 </span>{typedText}<span style={{opacity:0.5,animation:"blink 0.8s infinite"}}>▌</span>
       </div>
     </div>
-    {/* Dialogue area */}
-    <div style={{minHeight:70,padding:"10px 12px",background:"rgba(0,0,0,0.2)",borderRadius:8,marginBottom:10,border:"1px solid rgba(255,255,255,0.05)"}}>
-      <div style={{fontSize:13,color:S.text,lineHeight:1.6,fontStyle:phase==="typing"?"italic":"normal"}}>
-        {phase==="typing"||phase==="response"?<>
-          <span style={{color:phase==="response"?S.dim:tensionColor}}>{phase==="response"?"📡 ":"📻 "}</span>{typedText}<span style={{opacity:0.5,animation:"blink 0.8s infinite"}}>▌</span>
-        </>:phase==="waiting"?<>
-          <span style={{color:round===0?tensionColor:S.dim}}>{round===0?"📻 ":"📡 "}</span>{typedText}
-        </>:phase==="outcome"?null:<>
-          <span style={{color:tensionColor}}>📻 </span>{typedText}
-        </>}
-      </div>
-      {phase==="waiting"&&<div style={{textAlign:"right",marginTop:8}}>
-        <button onClick={handleNext} style={{background:S.accent,color:"#070d1a",border:"none",borderRadius:6,padding:"6px 18px",fontSize:13,fontWeight:"bold",cursor:"pointer",fontFamily:S.font}}>Next ▶</button>
-      </div>}
-    </div>
-    {/* Equipment badges */}
-    {(hasE||hasM)&&round===1&&phase==="choose"&&<div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:8,flexWrap:"wrap"}}>
-      {hasE&&<span style={{fontSize:10,color:S.blue,background:"rgba(26,140,255,0.1)",padding:"2px 8px",borderRadius:10}}>🚤 Escort</span>}
-      {hasM&&<span style={{fontSize:10,color:"#e056a0",background:"rgba(224,86,160,0.1)",padding:"2px 8px",borderRadius:10}}>🏥 Medic (safety net)</span>}
+    {/* Interpreter badge */}
+    {hasInterp&&round===0&&<div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:8}}>
+      <span style={{fontSize:10,color:S.blue,background:"rgba(26,140,255,0.1)",padding:"2px 8px",borderRadius:10}}>🗣️ Interpreter (reads opponent)</span>
     </div>}
-    {/* Tactic buttons */}
+    {/* Ready button (after intro) */}
+    {phase==="ready"&&<div style={{textAlign:"center",marginTop:8}}>
+      <button onClick={startRound} style={{background:S.accent,color:"#070d1a",border:"none",borderRadius:8,padding:"10px 28px",fontSize:15,fontWeight:"bold",cursor:"pointer",fontFamily:S.font}}>Begin Challenge ▶</button>
+    </div>}
+    {/* Move selection */}
     {phase==="choose"&&<div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-        <span style={{fontSize:11,color:S.dim}}>Choose your response:</span>
-        <span style={{fontSize:13,fontWeight:"bold",color:timeLeft<=3?S.red:S.accent,fontFamily:"monospace"}}>{timeLeft}s</span>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:getTactics(round).length>3?"1fr 1fr":"1fr 1fr 1fr",gap:6}}>
-        {getTactics(round).map(t=><button key={t.id} onClick={()=>handleTactic(t.id)}
-          style={{background:"rgba(255,255,255,0.04)",border:"1px solid "+t.color+"44",borderRadius:8,padding:"8px 6px",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}>
-          <div style={{fontSize:20}}>{t.icon}</div>
-          <div style={{fontSize:11,fontWeight:"bold",color:t.color}}>{t.name}</div>
-          <div style={{fontSize:9,color:S.dim}}>{t.desc}</div>
+      <div style={{fontSize:11,color:S.dim,textAlign:"center",marginBottom:8}}>Choose your move:</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+        {MOVES.map(m=><button key={m} onClick={()=>handleChoice(m)}
+          style={{background:"rgba(255,255,255,0.04)",border:"2px solid "+COLORS[m]+"66",borderRadius:10,padding:"12px 6px",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}>
+          <div style={{fontSize:36}}>{ICONS[m]}</div>
+          <div style={{fontSize:12,fontWeight:"bold",color:COLORS[m],marginTop:4}}>{LABELS[m]}</div>
         </button>)}
       </div>
+      {hint&&<div style={{textAlign:"center",marginTop:8,fontSize:11,color:S.blue,fontStyle:"italic"}}>
+        🗣️ Hint: {LABELS[hint]} {ICONS[hint]}
+      </div>}
     </div>}
-    {/* Outcome */}
-    {phase==="outcome"&&result&&<div style={{textAlign:"center",padding:"10px 0"}}>
-      <div style={{fontSize:48}}>{result.emoji}</div>
-      <div style={{fontSize:18,fontWeight:"bold",color:result.color,marginBottom:4}}>{result.title}</div>
-      <div style={{fontSize:13,color:S.text,lineHeight:1.6}}>{result.msg}</div>
-      {totalBribe>0&&<div style={{fontSize:11,color:S.dim,marginTop:4}}>Total bribes: ~{totalBribe}% cargo</div>}
+    {/* Reveal */}
+    {(phase==="reveal"||phase==="next")&&playerMove&&cmdMove&&<div>
+      <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:24,margin:"12px 0"}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:44}}>{ICONS[playerMove]}</div>
+          <div style={{fontSize:11,color:S.text,marginTop:4}}>You</div>
+          <div style={{fontSize:10,color:COLORS[playerMove]}}>{LABELS[playerMove]}</div>
+        </div>
+        <div style={{fontSize:20,color:S.dim}}>vs</div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:44}}>{ICONS[cmdMove]}</div>
+          <div style={{fontSize:11,color:S.text,marginTop:4}}>{commander.name.split(" ")[0]}</div>
+          <div style={{fontSize:10,color:COLORS[cmdMove]}}>{LABELS[cmdMove]}</div>
+        </div>
+      </div>
+      <div style={{textAlign:"center",fontSize:16,fontWeight:"bold",marginBottom:4,
+        color:roundResult==="win"?S.green:roundResult==="lose"?S.red:S.accent}}>
+        {roundResult==="win"?"YOU WIN!":roundResult==="lose"?"YOU LOSE":"DRAW"}
+      </div>
+      {phase==="next"&&<div style={{textAlign:"center",marginTop:8}}>
+        <button onClick={startRound} style={{background:S.accent,color:"#070d1a",border:"none",borderRadius:8,padding:"8px 22px",fontSize:13,fontWeight:"bold",cursor:"pointer",fontFamily:S.font}}>Next Round ▶</button>
+      </div>}
     </div>}
-    {/* CSS animation for blinking cursor */}
-    <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes pulse{0%{opacity:0.3}100%{opacity:0.7}}`}</style>
+    {/* Final outcome */}
+    {phase==="outcome"&&finalResult&&<div style={{textAlign:"center",padding:"10px 0"}}>
+      <div style={{fontSize:48}}>{finalResult.emoji}</div>
+      <div style={{fontSize:18,fontWeight:"bold",color:finalResult.color,marginBottom:4}}>{finalResult.title}</div>
+      <div style={{fontSize:13,color:S.text,lineHeight:1.6}}>{finalResult.msg}</div>
+      <div style={{fontSize:11,color:S.dim,marginTop:4}}>Final: {wins} wins — {losses} losses</div>
+    </div>}
+    <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
   </div>);
 }
 
@@ -2041,7 +1972,7 @@ function Game(){
       {id:"sandstorm",name:"Shamal",emoji:"🌪️",desc:"Navigate dust storm to exit"},
       {id:"drones",name:"Drone Swarm",emoji:"drone",desc:"Shoot down kamikaze UAVs"},
       {id:"radio",name:"Radio Scan",emoji:"📻",desc:"Track moving frequency"},
-      {id:"negotiate",name:"Negotiation",emoji:"irgcofficer",desc:"Negotiate with IRGC"},
+      {id:"negotiate",name:"IRGC Standoff",emoji:"✊",desc:"Rock-Paper-Scissors vs IRGC"},
     ];
     return(<div style={wrap}><div style={{maxWidth:520,margin:"0 auto"}}>
       <h2 style={{fontFamily:S.titleFont,color:S.accent,textAlign:"center",fontSize:22}}>🎮 TEST MINIGAMES</h2>
