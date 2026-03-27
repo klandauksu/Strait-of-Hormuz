@@ -4,9 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Strait of Hormuz</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23070d1a'/%3E%3Cellipse cx='16' cy='22' rx='10' ry='3' fill='%23102040'/%3E%3Crect x='8' y='8' width='16' height='16' rx='2' fill='%23222'/%3E%3Crect x='9' y='9' width='14' height='3' rx='1' fill='%23333'/%3E%3Crect x='9' y='13' width='14' height='2' fill='%231a1a1a'/%3E%3Crect x='9' y='16' width='14' height='2' fill='%231a1a1a'/%3E%3Crect x='9' y='19' width='14' height='4' rx='1' fill='%23333'/%3E%3Ccircle cx='16' cy='14' r='1.5' fill='%23f0c040'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='5' fill='%23f0c040' font-family='sans-serif' font-weight='bold'%3EOIL%3C/text%3E%3C/svg%3E"/>
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://taxpayer.me/">
 <meta property="og:title" content="Strait of Hormuz — Oil Tanker Survival Game">
-<meta property="og:description" content="Navigate 2M barrels of crude through the world's most dangerous chokepoint.">
-<meta name="twitter:card" content="summary">
+<meta property="og:description" content="Can you navigate 2,000,000 barrels of crude through the world's most dangerous chokepoint? Dodge drones, missiles & pirates. Play free now.">
+<meta property="og:image" content="https://taxpayer.me/welcome.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@taxpayer_me">
+<meta name="twitter:title" content="Strait of Hormuz — Oil Tanker Survival Game">
+<meta name="twitter:description" content="Can you navigate 2,000,000 barrels of crude through the world's most dangerous chokepoint? Dodge drones, missiles & pirates. Play free now.">
+<meta name="twitter:image" content="https://taxpayer.me/welcome.png">
 <style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;min-height:100dvh;background:#070d1a;overflow-x:hidden}body{-webkit-tap-highlight-color:transparent}input[type=range]{accent-color:#f0c040}canvas{touch-action:none;display:block;margin:0 auto;border-radius:10px;max-width:100%}</style>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
@@ -84,6 +96,27 @@ const wrap={minHeight:"100vh",background:"linear-gradient(180deg,#070d1a,#0c1a2e
 const gameWrap={background:"linear-gradient(180deg,#070d1a,#0c1a2e,#0a2240)",color:S.text,fontFamily:S.font,padding:16,fontSize:14,height:"100dvh",display:"flex",flexDirection:"column",overflow:"hidden"};
 const fieldCenter={flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",minHeight:0,width:"100%"};
 
+// ══════════ SUPABASE ══════════
+const SB_URL="https://aakdnjmshzhlljaemtsp.supabase.co";
+const SB_KEY="sb_publishable_pXwtggjbea9gSGtY1VGbxA_zhSbvUKu";
+const sbHeaders={"Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY};
+
+function submitScore(data){
+  try{fetch(SB_URL+"/rest/v1/game_scores",{method:"POST",headers:sbHeaders,body:JSON.stringify(data)}).catch(()=>{})}catch(e){}
+}
+function fetchGlobalStats(){
+  return fetch(SB_URL+"/rest/v1/game_scores?select=profit,cargo_delivered,voyage_complete",{headers:sbHeaders})
+    .then(r=>r.json()).then(rows=>{
+      const total=rows.length;
+      const completed=rows.filter(r=>r.voyage_complete).length;
+      const survivalPct=total>0?Math.round((completed/total)*100):0;
+      return{totalVoyages:total,completed,survivalPct};
+    }).catch(()=>null);
+}
+function fetchGlobalLeaderboard(){
+  return fetch(SB_URL+"/rest/v1/game_scores?select=player_name,ship,profit,voyage_complete,created_at&order=profit.desc&limit=50",{headers:sbHeaders})
+    .then(r=>r.json()).catch(()=>[]);
+}
 // ══════════ LEADERBOARD (localStorage) ══════════
 function getLeaderboard(){try{return JSON.parse(localStorage.getItem("soh_lb")||"[]")}catch(e){return[]}}
 function saveScore(entry){try{const lb=getLeaderboard();lb.push(entry);lb.sort((a,b)=>b.profit-a.profit);localStorage.setItem("soh_lb",JSON.stringify(lb.slice(0,20)))}catch(e){}}
@@ -179,7 +212,7 @@ function GameMap({originId,progress,events,eventIdx,selected,onSelect,mode}){
         const ex=lerp(route[ei].x,route[ei+1].x,et);
         const ey=lerp(route[ei].y,route[ei+1].y,et);
         const done=i<eventIdx;
-        return <g key={i}><circle cx={ex} cy={ey} r="1.8" fill={done?"rgba(46,204,113,0.2)":i===eventIdx?S.accent+"44":"rgba(231,76,60,0.2)"} stroke={done?S.green:i===eventIdx?S.accent:S.red} strokeWidth="0.3"/><text x={ex} y={ey+0.7} textAnchor="middle" fontSize="2">{ev.emoji}</text></g>;
+        return <g key={i}><circle cx={ex} cy={ey} r="1.8" fill={done?"rgba(46,204,113,0.2)":i===eventIdx?S.accent+"44":"rgba(231,76,60,0.2)"} stroke={done?S.green:i===eventIdx?S.accent:S.red} strokeWidth="0.3"/>{ev.miniGame==="drones"?<g transform={`translate(${ex},${ey}) scale(0.08)`}><polygon points="0,-10 -14,4 -12,6 0,2 12,6 14,4" fill="#aaa" stroke="#ccc" strokeWidth="0.5"/><rect x="-2" y="-10" width="4" height="14" fill="#999" rx="1"/><polygon points="-5,4 0,8 5,4" fill="#aaa"/><circle cx="0" cy="8" r="2.5" fill="#ff6600" opacity="0.8"/></g>:<text x={ex} y={ey+0.7} textAnchor="middle" fontSize="2">{ev.emoji}</text>}</g>;
       })}
       {/* Port markers */}
       {ORIGINS.map(o=>{
@@ -648,7 +681,8 @@ function PirateChaseGame({onComplete,shipSpeed,equip,shipKey,rounds=0}){
 
 // ══════════ MISSILE DODGE (unique — homing missiles) ══════════
 function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
-  const ref=useRef(null);const s=SHIPS[shipKey]||SHIPS.suezmax;
+  const ref=useRef(null);const actionsRef=useRef({fire:()=>{},flare:()=>{}});const s=SHIPS[shipKey]||SHIPS.suezmax;
+  const isMobile='ontouchstart' in window;
   useEffect(()=>{
     const W=420,H=500,canvas=ref.current;canvas.width=W;canvas.height=H;const ctx=canvas.getContext("2d");
     const spd=1.8+s.speed*0.2,arm=equip.includes("armor")?0.6:1;
@@ -733,6 +767,7 @@ function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
     const cc=e=>{e.preventDefault();fireRoundM()};
     const dblcc=e=>{e.preventDefault();deployFlareM()};
     canvas.addEventListener("click",cc);canvas.addEventListener("dblclick",dblcc);
+    actionsRef.current={fire:fireRoundM,flare:deployFlareM};
     window.addEventListener("keydown",kd);window.addEventListener("keyup",ku);
     let tch=null;const ts=e=>{tch={x:e.touches[0].clientX,y:e.touches[0].clientY};e.preventDefault()};const te=()=>{tch=null};
     canvas.addEventListener("touchstart",ts,{passive:false});canvas.addEventListener("touchmove",ts,{passive:false});canvas.addEventListener("touchend",te);
@@ -823,7 +858,7 @@ function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
         m.trail=m.trail.filter(tr=>tr.life>0);
         ctx.globalAlpha=1;
         // Draw missile body
-        ctx.save();ctx.translate(m.x,m.y);ctx.rotate(m.angle-Math.PI/2);
+        ctx.save();ctx.translate(m.x,m.y);ctx.rotate(m.angle+Math.PI/2);
         const mLen=12*m.sz,mWid=3.5*m.sz;
         // Missile body
         const mGrad=ctx.createLinearGradient(-mWid,0,mWid,0);
@@ -919,7 +954,12 @@ function MissileDodgeGame({onComplete,agility,equip,shipKey,flares=0,rounds=0}){
     };requestAnimationFrame(loop);
     return()=>{g.active=false;window.removeEventListener("keydown",kd);window.removeEventListener("keyup",ku);canvas.removeEventListener("touchstart",ts);canvas.removeEventListener("touchmove",ts);canvas.removeEventListener("touchend",te);canvas.removeEventListener("click",cc);canvas.removeEventListener("dblclick",dblcc)};
   },[]);
-  return <canvas ref={ref} style={{borderRadius:8,border:"1px solid rgba(255,60,30,0.15)"}}/>;
+  const mBtn={position:"absolute",bottom:12,width:64,height:64,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:"bold",cursor:"pointer",userSelect:"none",WebkitUserSelect:"none",zIndex:10};
+  return <div style={{position:"relative",display:"inline-block"}}>
+    <canvas ref={ref} style={{borderRadius:8,border:"1px solid rgba(255,60,30,0.15)"}}/>
+    {isMobile&&rounds>0&&<div onTouchStart={e=>{e.preventDefault();e.stopPropagation();actionsRef.current.fire()}} style={{...mBtn,left:12,background:"rgba(255,136,0,0.4)"}}><span>💥</span></div>}
+    {isMobile&&flares>0&&<div onTouchStart={e=>{e.preventDefault();e.stopPropagation();actionsRef.current.flare()}} style={{...mBtn,right:12,background:"rgba(255,221,68,0.4)"}}><span>🎆</span></div>}
+  </div>;
 }
 
 // ══════════ SHAMAL / SANDSTORM (unique — fog navigation) ══════════
@@ -1721,17 +1761,22 @@ function Game(){
   const[catastrophe,setCatastrophe]=useState(null);const[gameOver,setGameOver]=useState(false);
   const[negotiationsUsed,setNegotiationsUsed]=useState(0);
   const[playerName,setPlayerName]=useState("");
+  const[globalStats,setGlobalStats]=useState(null);
+  const[globalLB,setGlobalLB]=useState([]);
   const[miniGameStarted,setMiniGameStarted]=useState(false);
   const[finalSellPrice,setFinalSellPrice]=useState(null);// null = not yet set
   const[newsHistory,setNewsHistory]=useState([]);
   const sailRef=useRef(null);const eventsRef=useRef([]);
   const equipCost=equipment.reduce((s,id)=>s+(EQUIPMENT.find(e=>e.id===id)?.cost||0),0)+flareCount*25000+roundCount*15000;
 
+  const refreshGlobal=()=>{fetchGlobalStats().then(s=>{if(s)setGlobalStats(s)});fetchGlobalLeaderboard().then(lb=>{if(lb)setGlobalLB(lb)})};
+  useEffect(refreshGlobal,[]);
+
   const initEvents=useCallback(()=>{
     let pool=[...EVENTS].sort(()=>Math.random()-0.5).filter(e=>Math.random()<e.probability).slice(0,6);
-    // Cap negotiations at 2
+    // Cap negotiations at 1
     let negCount=0;
-    pool=pool.filter(e=>{if(e.miniGame==="negotiate"){negCount++;return negCount<=2}return true});
+    pool=pool.filter(e=>{if(e.miniGame==="negotiate"){negCount++;return negCount<=1}return true});
     eventsRef.current=pool;
   },[]);
 
@@ -1785,14 +1830,18 @@ function Game(){
   const fCost=Math.round((sd?.fuelBurn||50)*3.5*600);
   const netP=rev-pCost-equipCost-fCost-repairCosts;
 
-  const reset=()=>{setPhase("title");setShip(null);setOrigin(null);setSelOrigin(null);setEquipment([]);setCargo(1);setHullHP(100);setMaxHull(100);setRepairCosts(0);setEventLog([]);setCurrentEvent(null);setEventResult(null);setEventIndex(0);setGameOver(false);setCatastrophe(null);setNegotiationsUsed(0);setFinalSellPrice(null);setNewsHistory([])};
+  const reset=()=>{setPhase("title");setShip(null);setOrigin(null);setSelOrigin(null);setEquipment([]);setCargo(1);setHullHP(100);setMaxHull(100);setRepairCosts(0);setEventLog([]);setCurrentEvent(null);setEventResult(null);setEventIndex(0);setGameOver(false);setCatastrophe(null);setNegotiationsUsed(0);setFinalSellPrice(null);setNewsHistory([]);refreshGlobal()};
 
   // ── TITLE ──
-  if(phase==="title")return(<div style={wrap}><div style={{textAlign:"center",paddingTop:30,maxWidth:500,margin:"0 auto"}}>
-    <div style={{fontSize:56}}>🛢️</div>
-    <h1 style={{fontFamily:S.titleFont,fontSize:28,color:S.accent,letterSpacing:2,textTransform:"uppercase"}}>Strait of Hormuz</h1>
-    <p style={{color:S.dim,fontSize:11,letterSpacing:3,textTransform:"uppercase",marginTop:4}}>Oil Tanker Survival Game</p>
-    <div style={{...card,textAlign:"left",marginTop:20}}>
+  if(phase==="title")return(<div style={wrap}><div style={{textAlign:"center",paddingTop:0,maxWidth:500,margin:"0 auto"}}>
+    <div style={{position:"relative",marginBottom:8,borderRadius:10,overflow:"hidden",border:"3px solid "+S.border,boxShadow:"0 0 30px rgba(240,192,64,0.15)"}}>
+      <img src="welcome.png" alt="Strait of Hormuz" style={{width:"100%",display:"block",imageRendering:"pixelated"}}/>
+      <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(7,13,26,0.95))",padding:"40px 16px 14px"}}>
+        <h1 style={{fontFamily:S.titleFont,fontSize:26,color:S.accent,letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(240,192,64,0.6), 0 2px 4px rgba(0,0,0,0.8)",margin:0}}>Strait of Hormuz</h1>
+        <p style={{color:"#ccc",fontSize:11,letterSpacing:3,textTransform:"uppercase",marginTop:4,textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>Oil Tanker Survival Game</p>
+      </div>
+    </div>
+    <div style={{...card,textAlign:"left",marginTop:12}}>
       <p style={{fontSize:13,lineHeight:1.7,color:S.dim}}>Choose your tanker. Load crude. Navigate mini-games through the world's most dangerous shipping lane. Ship size affects hitbox — bigger ships are harder to maneuver.</p>
     </div>
     <div style={{marginTop:16}}>
@@ -1802,16 +1851,34 @@ function Game(){
     <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:12,flexWrap:"wrap"}}>
       <button onClick={()=>setPhase("howto")} style={{...btn("#4a90d9",false),fontSize:12,padding:"8px 20px"}}>📖 HOW TO PLAY</button>
       <button onClick={()=>{setTestGame(null);setTestResult(null);setPhase("test_menu")}} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px"}}>🎮 TEST MINIGAMES</button>
-      <button onClick={()=>setPhase("debug_map")} style={{...btn("#3a5070",false),fontSize:12,padding:"8px 20px"}}>🗺️ MAP</button>
     </div>
-    {/* Leaderboard */}
-    {(()=>{const lb=getLeaderboard();if(!lb.length)return null;return <div style={{...card,marginTop:20,textAlign:"left"}}>
-      <div style={{fontWeight:"bold",color:S.accent,marginBottom:8}}>🏆 Leaderboard</div>
-      {lb.slice(0,10).map((e,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",borderBottom:"1px solid "+S.border}}>
-        <span style={{color:i<3?S.accent:"#fff"}}>#{i+1} {e.name||"Anon"} ({e.ship})</span>
-        <span style={{color:e.profit>0?S.green:S.red}}>${(e.profit/1e6).toFixed(2)}M</span>
-      </div>)}
+    {/* Global Stats */}
+    {globalStats&&globalStats.totalVoyages>0&&<div style={{...card,marginTop:20,textAlign:"center"}}>
+      <div style={{fontWeight:"bold",color:S.accent,marginBottom:8,fontSize:12,textTransform:"uppercase",letterSpacing:1}}>🌍 Global Stats</div>
+      <div style={{display:"flex",justifyContent:"space-around",fontSize:12}}>
+        <div><div style={{fontSize:20,fontWeight:"bold",color:"#fff"}}>{globalStats.totalVoyages.toLocaleString()}</div><div style={{color:S.dim,fontSize:10}}>Voyages</div></div>
+        <div><div style={{fontSize:20,fontWeight:"bold",color:S.green}}>{globalStats.completed.toLocaleString()}</div><div style={{color:S.dim,fontSize:10}}>Completed</div></div>
+        <div><div style={{fontSize:20,fontWeight:"bold",color:globalStats.survivalPct>=50?S.green:S.red}}>{globalStats.survivalPct}%</div><div style={{color:S.dim,fontSize:10}}>Survival Rate</div></div>
+      </div>
+    </div>}
+    {/* Personal Best */}
+    {(()=>{const lb=getLeaderboard();if(!lb.length)return null;const best=lb[0];return <div style={{...card,marginTop:20,textAlign:"center",padding:"10px 16px"}}>
+      <div style={{fontSize:11,color:S.dim,textTransform:"uppercase",letterSpacing:1}}>Your Best Voyage</div>
+      <div style={{display:"flex",justifyContent:"center",alignItems:"baseline",gap:8,marginTop:4}}>
+        <span style={{fontSize:18,fontWeight:"bold",color:best.profit>0?S.green:S.red}}>${(best.profit/1e6).toFixed(2)}M</span>
+        <span style={{fontSize:12,color:S.dim}}>{best.name||"Anon"} • {best.ship} • {best.cargo} cargo</span>
+      </div>
     </div>})()}
+    {/* Global Leaderboard */}
+    {globalLB.length>0&&<div style={{...card,marginTop:8,textAlign:"left"}}>
+      <div style={{fontWeight:"bold",color:S.accent,marginBottom:8}}>🏆 Global Leaderboard</div>
+      <div style={{maxHeight:400,overflowY:"auto"}}>
+      {globalLB.map((e,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",borderBottom:"1px solid "+S.border}}>
+        <span style={{color:i<3?S.accent:"#fff"}}>#{i+1} {e.player_name||"Anon"} ({e.ship||"?"})</span>
+        <span style={{color:(e.profit||0)>0?S.green:S.red}}>${((e.profit||0)/1e6).toFixed(2)}M</span>
+      </div>)}
+      </div>
+    </div>}
   </div></div>);
 
   // ── HOW TO PLAY ──
@@ -1876,16 +1943,33 @@ function Game(){
         <p style={{fontSize:13,color:S.text,lineHeight:1.7,marginBottom:10}}>As you transit the Strait, you'll face a randomized series of encounters. Each one is a mini-game that tests different skills:</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
           {[
-            {icon:"💣",name:"Minefield",hint:"Steer through floating mines",ctrl:"↑↓←→ or touch"},
-            {icon:"🇮🇷",name:"IRGC Boats",hint:"Outrun IRGC fast attack boats",ctrl:"↑↓←→ or touch"},
-            {icon:"🚀",name:"Missiles",hint:"Dodge homing anti-ship missiles",ctrl:"←→, flares, guns"},
-            {icon:"🌪️",name:"Shamal",hint:"Navigate through zero visibility",ctrl:"↑↓←→ or touch"},
-            {icon:"🛩️",name:"Drones",hint:"Shoot down kamikaze UAVs before they dive-bomb your ship",ctrl:"Tap targets"},
-            {icon:"📻",name:"Radio Scan",hint:"Lock onto a moving frequency",ctrl:"Slider"},
-            {icon:"🇮🇷",name:"IRGC Patrol",hint:"Negotiate your way through",ctrl:"Tactic choices"},
-            {icon:"🤫",name:"Smugglers",hint:"A shady deal... or a trap?",ctrl:"Tactic choices"},
+            {icon:"mine",name:"Minefield",hint:"Dodge mines — 30s",ctrl:"↑↓←→ or touch"},
+            {icon:"irgcboat",name:"IRGC Fast Boats",hint:"Evade pursuers — 20s",ctrl:"↑↓←→ or touch"},
+            {icon:"🚀",name:"Missile Dodge",hint:"Dodge homing missiles — 15s",ctrl:"←→, flares, guns"},
+            {icon:"🌪️",name:"Shamal",hint:"Navigate dust storm to exit",ctrl:"↑↓←→ or touch"},
+            {icon:"drone",name:"Drone Swarm",hint:"Shoot down kamikaze UAVs",ctrl:"Tap targets"},
+            {icon:"📻",name:"Radio Scan",hint:"Track moving frequency",ctrl:"Slider"},
+            {icon:"✊",name:"IRGC Standoff",hint:"Rock-Paper-Scissors vs IRGC",ctrl:"Tap/Click"},
           ].map((g,i)=><div key={i} style={{background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"7px 10px",fontSize:11}}>
-            <div><span style={{fontSize:16}}>{g.icon}</span> <b style={{color:S.text}}>{g.name}</b></div>
+            <div>{g.icon==="mine"?<svg width="20" height="20" viewBox="-20 -20 40 40" style={{display:"inline-block",verticalAlign:"middle",marginRight:4}}>
+              <line x1="0" y1="10" x2="0" y2="18" stroke="#666" strokeWidth="1" strokeDasharray="2,2"/>
+              <circle cx="0" cy="0" r="10" fill="#333" stroke="#444" strokeWidth="0.8"/>
+              {[0,1,2,3,4,5].map(ii=>{const a=(ii/6)*Math.PI*2;return <g key={ii}><circle cx={Math.cos(a)*11.5} cy={Math.sin(a)*11.5} r="3" fill="#666"/><circle cx={Math.cos(a)*11.5} cy={Math.sin(a)*11.5} r="1.3" fill="#999"/></g>})}
+              <circle cx="0" cy="-3.5" r="2.5" fill="#e74c3c" opacity="0.8"/>
+            </svg>:g.icon==="irgcboat"?<svg width="18" height="20" viewBox="-14 -14 28 28" style={{display:"inline-block",verticalAlign:"middle",marginRight:4}}>
+              <ellipse cx="1" cy="2" rx="9" ry="4.5" fill="rgba(0,0,0,0.3)"/>
+              <path d="M0,-12 C-8,-4 -9,6 -7,10 L7,10 C9,6 8,-4 0,-12Z" fill="#2a3a2a"/>
+              <rect x="-5" y="0" width="10" height="6" fill="#1a2a1a"/>
+              <rect x="-6" y="-5" width="12" height="2" fill="#239f40"/>
+              <rect x="-6" y="-3" width="12" height="2" fill="#fff"/>
+              <rect x="-6" y="-1" width="12" height="2" fill="#da0000"/>
+              <path d="M-3,10 L0,17 L3,10" fill="rgba(150,200,255,0.35)"/>
+            </svg>:g.icon==="drone"?<svg width="20" height="14" viewBox="-16 -12 32 24" style={{display:"inline-block",verticalAlign:"middle",marginRight:4}}>
+              <polygon points="0,-10 -14,4 -12,6 0,2 12,6 14,4" fill="#888" stroke="#aaa" strokeWidth="0.5"/>
+              <rect x="-2" y="-10" width="4" height="14" fill="#777" rx="1"/>
+              <polygon points="-5,4 0,8 5,4" fill="#888"/>
+              <circle cx="0" cy="8" r="2.5" fill="#ff6600" opacity="0.8"/>
+            </svg>:<span style={{fontSize:16}}>{g.icon}</span>} <b style={{color:S.text}}>{g.name}</b></div>
             <div style={{color:S.dim,marginTop:2}}>{g.hint}</div>
             <div style={{color:S.blue,fontSize:10,marginTop:1}}>{g.ctrl}</div>
           </div>)}
@@ -2193,7 +2277,7 @@ function Game(){
         <p style={{fontSize:14,color:S.text}}>{eventResult.msg}</p>
       </div>
       <div style={{textAlign:"center",marginTop:12}}>
-        {eventResult.sunk||gameOver?<button onClick={()=>setPhase("endscreen")} style={btn(S.red)}>FINAL ACCOUNTING</button>:
+        {eventResult.sunk||gameOver?<button onClick={()=>{saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:netP,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});submitScore({player_name:playerName||"Anon",ship:sd?.name,origin:od?.name,cargo_delivered:totalBbl,profit:netP,hull_remaining:hullHP,events_survived:eventLog.length,equipment,voyage_complete:false});setPhase("endscreen");}} style={btn(S.red)}>FINAL ACCOUNTING</button>:
         <button onClick={proceedEv} style={btn()}>{eventIndex+1>=eventsRef.current.length?"🏁 EXIT STRAIT":"CONTINUE"}</button>}
       </div>
     </div>}
@@ -2211,6 +2295,7 @@ function Game(){
         setFinalSellPrice(null);setNewsHistory([]);
         if(gameOver){
           saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:netP,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
+          submitScore({player_name:playerName||"Anon",ship:sd?.name,origin:od?.name,cargo_delivered:totalBbl,profit:netP,hull_remaining:hullHP,events_survived:eventLog.length,equipment,voyage_complete:false});
           setPhase("endscreen");
         }else{setPhase("oilmarket")}
       }} style={{...btn(),marginTop:14}}>{gameOver?"📊 FINAL ACCOUNTING":"📈 SELL OIL"}</button>
@@ -2259,7 +2344,9 @@ function Game(){
     };
     const sellNow=()=>{
       setFinalSellPrice(curPrice);
-      saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:totalBbl*curPrice-pCost-equipCost-fCost-repairCosts,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
+      const finalProfit=totalBbl*curPrice-pCost-equipCost-fCost-repairCosts;
+      saveScore({name:playerName||"Anon",ship:sd?.name,origin:od?.name,profit:finalProfit,cargo:(cargo*100).toFixed(0)+"%",date:new Date().toLocaleDateString()});
+      submitScore({player_name:playerName||"Anon",ship:sd?.name,origin:od?.name,cargo_delivered:totalBbl,profit:finalProfit,hull_remaining:hullHP,events_survived:eventLog.length,equipment,voyage_complete:true});
       setPhase("endscreen");
     };
     const margin=curPrice-(od?.price||70);
@@ -2361,5 +2448,6 @@ function Game(){
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Game));
 </script>
+<!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "799645dc335c4f43bf59748d0cbc010d"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
