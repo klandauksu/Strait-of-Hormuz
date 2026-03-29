@@ -19,6 +19,9 @@
 <meta name="twitter:title" content="Strait of Hormuz — Oil Tanker Survival Game">
 <meta name="twitter:description" content="Can you navigate 2,000,000 barrels of crude through the world's most dangerous chokepoint? Dodge drones, missiles & pirates. Play free now.">
 <meta name="twitter:image" content="https://taxpayer.me/welcome.png">
+<!-- Preload critical images to eliminate render-blocking delay -->
+<link rel="preload" as="image" href="welcome.png" fetchpriority="high">
+<link rel="preload" as="image" href="map-bg.png">
 <style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;min-height:100dvh;background:#070d1a;overflow-x:hidden}body{-webkit-tap-highlight-color:transparent}input[type=range]{accent-color:#f0c040}canvas{touch-action:none;display:block;margin:0 auto;border-radius:10px;max-width:100%}</style>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
@@ -1835,7 +1838,7 @@ function Game(){
   // ── TITLE ──
   if(phase==="title")return(<div style={wrap}><div style={{textAlign:"center",paddingTop:0,maxWidth:500,margin:"0 auto"}}>
     <div style={{position:"relative",marginBottom:8,borderRadius:10,overflow:"hidden",border:"3px solid "+S.border,boxShadow:"0 0 30px rgba(240,192,64,0.15)"}}>
-      <img src="welcome.png" alt="Strait of Hormuz" style={{width:"100%",display:"block",imageRendering:"pixelated"}}/>
+      <img src="welcome.png" alt="Strait of Hormuz" width="1320" height="660" fetchpriority="high" style={{width:"100%",height:"auto",display:"block",aspectRatio:"2/1"}}/>
       <div style={{position:"absolute",bottom:0,left:0,right:0,background:"linear-gradient(transparent,rgba(7,13,26,0.95))",padding:"40px 16px 14px"}}>
         <h1 style={{fontFamily:S.titleFont,fontSize:26,color:S.accent,letterSpacing:2,textTransform:"uppercase",textShadow:"0 0 20px rgba(240,192,64,0.6), 0 2px 4px rgba(0,0,0,0.8)",margin:0}}>Strait of Hormuz</h1>
         <p style={{color:"#ccc",fontSize:11,letterSpacing:3,textTransform:"uppercase",marginTop:4,textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>Oil Tanker Survival Game</p>
